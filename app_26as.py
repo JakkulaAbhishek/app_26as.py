@@ -2,200 +2,131 @@ import streamlit as st
 import pdfplumber
 import pandas as pd
 import re
-from datetime import datetime
 from io import BytesIO
 
-# ---------------- PAGE CONFIG ----------------
+# ---------------- UI THEME ----------------
 st.set_page_config(page_title="AJ 26AS Tool", layout="wide")
 
-# ---------------- BLACK THEME + BRAND LOGO ----------------
 st.markdown("""
 <style>
-.stApp {
-    background-color: black;
-    color: white;
-}
-
-.logo-box {
-    margin: auto;
-    width: 260px;
-    height: 120px;
-    background: black;
-    border-radius: 18px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 3px solid red;
-    box-shadow: 0px 0px 20px red;
-}
-
-.logo-text {
-    font-size: 70px;
-    font-weight: 900;
-    color: red;
-    letter-spacing: 6px;
-}
-
-.krishna {
-    text-align:center;
-    font-size:26px;
-    color: gold;
-}
-
-.title {
-    text-align:center;
-    font-size: 42px;
-    font-weight: 900;
-    color: white;
-}
-
-.sub {
-    text-align:center;
-    font-size: 20px;
-    font-weight: 600;
-    color: #cccccc;
-}
-
-.block-container {
-    background-color: #0f0f0f;
-    padding: 2rem;
-    border-radius: 16px;
-}
+body { background-color: black; color: white; }
+.block-container { background-color: black; }
+h1, h2, h3, h4 { color: white; }
 </style>
-
-<div class="logo-box">
-    <div class="logo-text">AJ</div>
-</div>
-<div class="krishna">🦚 🎶 Lord Krishna Blessings</div>
-<div class="title">26AS Reconciliation Automation Tool</div>
-<div class="sub">Tool developed by - Abhishek Jakkula</div>
 """, unsafe_allow_html=True)
 
-st.markdown("---")
+# ---------------- BRAND HEADER ----------------
+st.markdown("""
+<div style="background:black;padding:20px;border:2px solid red;border-radius:15px;text-align:center;">
+<h1 style="color:white;">26AS RECONCILIATION AUTOMATION TOOL</h1>
+<h3 style="color:red;">AJ</h3>
+<h4>🦚🎶 Lord Krishna Blessings</h4>
+<p style="color:lightgray;">Tool developed by - Abhishek Jakkula</p>
+</div>
+""", unsafe_allow_html=True)
 
-# ---------------- SAMPLE BOOKS TEMPLATE ----------------
-sample_df = pd.DataFrame({
-    "Name": ["ABC Pvt Ltd", "XYZ Solutions"],
-    "TAN": ["HYDA12345A", "MUMA67890B"],
-    "Books Amount": [500000, 250000],
-    "Books TDS": [50000, 25000]
+st.divider()
+
+# ---------------- SAMPLE BOOKS ----------------
+sample_books = pd.DataFrame({
+    "Party Name": ["ABC Pvt Ltd"],
+    "TAN": ["HYDA00000A"],
+    "Books Amount": [100000],
+    "Books TDS": [10000]
 })
 
 buf = BytesIO()
-sample_df.to_excel(buf, index=False)
+sample_books.to_excel(buf, index=False)
 buf.seek(0)
 
-st.download_button("📥 Download Sample Books Excel Template", buf, "Sample_Books_Template.xlsx")
-st.info("📌 Upload only **TRACES Form 26AS PDF (text based)** and **Books Excel**")
+st.download_button("⬇ Download Sample Books Excel Template",
+                   data=buf,
+                   file_name="Sample_Books_Template.xlsx")
 
-st.markdown("---")
+st.info("Upload only TRACES Form 26AS PDF (text based) and Books Excel")
 
-# ---------------- HELPERS ----------------
-def clean(text):
-    return re.sub(r"\s+", " ", text).strip()
+# ---------------- UPLOAD ----------------
+pdf_file = st.file_uploader("Upload TRACES Form 26AS PDF", type=["pdf"])
+books_file = st.file_uploader("Upload Books Excel", type=["xlsx"])
 
-def extract_26as_data(pdf_file):
-    full_text = ""
-    with pdfplumber.open(pdf_file) as pdf:
-        for page in pdf.pages:
-            t = page.extract_text()
-            if t:
-                full_text += "\n" + t
-
+# ---------------- 26AS PARSER ----------------
+def extract_26as(pdf):
     records = []
-    blocks = re.split(r"Name of Deductor", full_text, flags=re.I)
+    with pdfplumber.open(pdf) as pdf:
+        for page in pdf.pages:
+            tables = page.extract_tables()
+            for table in tables:
+                for row in table:
+                    if row and len(row) >= 8:
+                        if re.match(r"\d{2}-[A-Za-z]{3}-\d{4}", str(row[2])):
+                            records.append({
+                                "Section": row[1],
+                                "Transaction Date": row[2],
+                                "Amount Paid": row[6],
+                                "TDS": row[7]
+                            })
 
-    for block in blocks[1:]:
-        name = re.search(r":\s*(.*?)\s*TAN", block, re.I)
-        tan = re.search(r"TAN\s*:\s*([A-Z0-9]+)", block, re.I)
-        section = re.search(r"Section\s*:\s*(\d+[A-Z]*)", block, re.I)
+            text = page.extract_text()
+            blocks = re.split(r"Name of Deductor", text)
+            for b in blocks[1:]:
+                name = re.search(r"\n([A-Z &().]+)", b)
+                tan = re.search(r"\b[A-Z]{4}\d{5}[A-Z]\b", b)
+                if name and tan:
+                    for r in records[-5:]:
+                        r["Party"] = name.group(1).strip()
+                        r["TAN"] = tan.group()
 
-        deductor_name = clean(name.group(1)) if name else ""
-        tan_no = tan.group(1) if tan else ""
-        sec = section.group(1) if section else "NA"
+    df = pd.DataFrame(records)
+    df["Amount Paid"] = pd.to_numeric(df["Amount Paid"], errors="coerce").fillna(0)
+    df["TDS"] = pd.to_numeric(df["TDS"], errors="coerce").fillna(0)
+    return df
 
-        rows = re.findall(r"(\d{2}/\d{2}/\d{4})\s+([\d,]+\.?\d*)\s+([\d,]+\.?\d*)", block)
+# ---------------- PROCESS ----------------
+if st.button("🚀 RUN 26AS RECONCILIATION"):
 
-        for r in rows:
-            records.append({
-                "Section": sec,
-                "Deductor Name": deductor_name,
-                "TAN": tan_no,
-                "Transaction Date": r[0],
-                "Amount Paid": float(r[1].replace(",", "")),
-                "TDS Deposited": float(r[2].replace(",", ""))
-            })
+    if not pdf_file or not books_file:
+        st.error("Upload both PDF and Books file.")
+        st.stop()
 
-    return pd.DataFrame(records)
+    df26 = extract_26as(pdf_file)
 
-# ---------------- FILE UPLOAD ----------------
-col1, col2 = st.columns(2)
-with col1:
-    pdf_file = st.file_uploader("Upload TRACES Form 26AS PDF", type=["pdf"])
-with col2:
-    books_file = st.file_uploader("Upload Books Excel", type=["xlsx"])
-
-if pdf_file and books_file and st.button("🚀 RUN 26AS RECONCILIATION"):
-
-    df_26as = extract_26as_data(pdf_file)
-    if df_26as.empty:
+    if df26.empty:
         st.error("❌ No TDS data detected from PDF.")
         st.stop()
 
-    df_books = pd.read_excel(books_file)
+    books = pd.read_excel(books_file)
 
-    required = {"Name","TAN","Books Amount","Books TDS"}
-    if not required.issubset(df_books.columns):
-        st.error("❌ Books file must contain: Name, TAN, Books Amount, Books TDS")
-        st.stop()
+    pivot_party = df26.groupby(["Party","TAN"], as_index=False)[["Amount Paid","TDS"]].sum()
+    pivot_section = df26.groupby("Section", as_index=False)[["Amount Paid","TDS"]].sum()
 
-    df_26as["TAN"] = df_26as["TAN"].str.upper().str.strip()
-    df_books["TAN"] = df_books["TAN"].astype(str).str.upper().str.strip()
+    recon = pivot_party.merge(books, on="TAN", how="outer")
 
-    party_summary = df_26as.groupby(["TAN","Deductor Name"]).agg({
-        "Amount Paid":"sum",
-        "TDS Deposited":"sum"
-    }).reset_index()
+    recon["Books Amount"] = recon["Books Amount"].fillna(0)
+    recon["Books TDS"] = recon["Books TDS"].fillna(0)
 
-    section_pivot = df_26as.pivot_table(values="TDS Deposited", index="Section", aggfunc="sum").reset_index()
+    recon["Amount Diff"] = recon["Amount Paid"] - recon["Books Amount"]
+    recon["TDS Diff"] = recon["TDS"] - recon["Books TDS"]
 
-    g26 = df_26as.groupby("TAN").agg({"Amount Paid":"sum","TDS Deposited":"sum"}).reset_index()
-    gb = df_books.groupby("TAN").agg({"Books Amount":"sum","Books TDS":"sum"}).reset_index()
+    missing_books = recon[recon["Books Amount"] == 0]
 
-    recon = pd.merge(g26, gb, on="TAN", how="outer").fillna(0)
+    recon["Risk Flag"] = recon.apply(lambda x:
+        "⚠ High Risk" if abs(x["TDS Diff"]) > 1000 else "OK", axis=1)
 
-    recon["Amount Difference"] = recon["Amount Paid"] - recon["Books Amount"]
-    recon["TDS Difference"] = recon["TDS Deposited"] - recon["Books TDS"]
+    # ---------------- EXCEL EXPORT ----------------
+    out = BytesIO()
+    with pd.ExcelWriter(out, engine="openpyxl") as writer:
+        df26.to_excel(writer, "Raw_26AS", index=False)
+        pivot_party.to_excel(writer, "Party_Summary", index=False)
+        pivot_section.to_excel(writer, "Section_Pivot", index=False)
+        recon.to_excel(writer, "Reconciliation", index=False)
+        missing_books.to_excel(writer, "Missing_in_Books", index=False)
 
-    recon["Risk Flag"] = recon["TDS Difference"].apply(
-        lambda x: "HIGH 🔴" if abs(x) > 10000 else "MEDIUM 🟠" if abs(x) > 0 else "NO RISK 🟢"
-    )
+    out.seek(0)
 
-    missing_in_books = recon[(recon["Books Amount"] == 0) & (recon["Amount Paid"] > 0)]
+    st.success("✅ Reconciliation completed successfully!")
 
-    st.success("✅ Reconciliation Completed")
+    st.download_button("⬇ Download Final Reconciliation Excel",
+                       data=out,
+                       file_name="AJ_26AS_Reconciliation.xlsx")
 
-    st.subheader("🔍 TAN Wise Difference Report")
-    st.dataframe(recon, use_container_width=True)
-
-    st.subheader("🏢 Party Summary")
-    st.dataframe(party_summary, use_container_width=True)
-
-    st.subheader("📊 Section Wise Pivot")
-    st.dataframe(section_pivot, use_container_width=True)
-
-    st.subheader("⚠️ Missing in Books")
-    st.dataframe(missing_in_books, use_container_width=True)
-
-    file_name = f"AJ_26AS_Difference_Report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-
-    with pd.ExcelWriter(file_name, engine="openpyxl") as writer:
-        df_26as.to_excel(writer, sheet_name="Raw_26AS", index=False)
-        df_books.to_excel(writer, sheet_name="Books_Data", index=False)
-        recon.to_excel(writer, sheet_name="TAN_Difference", index=False)
-        missing_in_books.to_excel(writer, sheet_name="Missing_in_Books", index=False)
-        party_summary.to_excel(writer, sheet_name="Party_Summary", index=False)
-        section_pivot.to_excel(writer, sheet_name="Section_Pivot", index=False)
-
-    with open(file_name,"rb") as f:
-        st.download_button("📥 DOWNLOAD DIFFERENCE EXCEL", f, file_name)
+    st.dataframe(recon)
