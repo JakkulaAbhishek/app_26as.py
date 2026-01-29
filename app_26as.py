@@ -56,7 +56,7 @@ st.markdown("""
 
 /* Uploader text */
 [data-testid="stFileUploader"] * {
-    color:#020617 !important;
+    color:white !important;
     font-weight:600 !important;
 }
 
@@ -111,7 +111,7 @@ h1,h2,h3,h4,h5,h6,p,span,div,label {
 st.markdown("""
 <div class="header-box">
     <div class="header-title">26AS PROFESSIONAL RECONCILIATION TOOL</div>
-    <div class="header-sub">Exact TRACES Matching Engine</div>
+    <div class="header-sub">26AS VS BOOKS</div>
     <div class="krishna">🦚 श्री कृष्णाय नमः 🙏</div>
     <div class="shloka">
         कर्मण्येवाधिकारस्ते मा फलेषु कदाचन ।<br>
