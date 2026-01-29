@@ -5,71 +5,77 @@ from io import BytesIO
 
 st.set_page_config(page_title="26AS Professional Tool", layout="wide")
 
-# ---------------- CLEAR COLORED PROFESSIONAL UI ----------------
+# ---------------- BLACK PROFESSIONAL UI ----------------
 st.markdown("""
 <style>
 
 .stApp {
-    background:#f2f5f9;
+    background:#05070d;
     font-family: 'Segoe UI', sans-serif;
-    color:#000000;
+    color:#e5e7eb;
 }
 
 .block-container {
-    background:#ffffff;
-    padding:2.2rem;
-    border-radius:16px;
+    background:#05070d;
+    padding:2rem;
 }
 
 /* HEADER */
 .header-box {
-    background: linear-gradient(90deg,#1e3a8a,#2563eb);
+    background: linear-gradient(90deg,#020617,#020617,#1e3a8a);
     padding:30px;
-    border-radius:16px;
+    border-radius:18px;
     margin-bottom:25px;
+    border:1px solid #1e3a8a;
 }
 
-.header-box h1, .header-box h3, .header-box p {
-    color:white !important;
-}
+.header-box h1 {color:#facc15 !important;}
+.header-box h3 {color:#38bdf8 !important;}
+.header-box p {color:#e5e7eb !important;}
 
 /* ZONES */
 .zone {
-    background:#ffffff;
+    background: linear-gradient(145deg,#020617,#020617,#020617);
     padding:18px;
     border-radius:14px;
-    box-shadow:0 6px 18px rgba(0,0,0,0.08);
+    border:1px solid #1f2937;
+    box-shadow:0 0 20px rgba(56,189,248,0.15);
     margin-bottom:18px;
 }
 
 /* FILE UPLOAD */
 [data-testid="stFileUploader"] {
-    background:#f8fafc;
-    border:2px dashed #2563eb;
+    background:#ffffff;
     border-radius:12px;
     padding:18px;
+    border:2px dashed #38bdf8;
 }
 
 /* BUTTONS */
 .stButton button, .stDownloadButton button {
-    background: linear-gradient(90deg,#2563eb,#06b6d4);
-    color:white;
+    background: linear-gradient(90deg,#22c55e,#06b6d4);
+    color:#020617;
     border-radius:10px;
     padding:10px 22px;
-    font-weight:700;
+    font-weight:800;
     border:none;
 }
 
 .stButton button:hover, .stDownloadButton button:hover {
-    transform:scale(1.02);
-    box-shadow:0 6px 18px rgba(37,99,235,0.4);
+    transform:scale(1.03);
+    box-shadow:0 0 25px rgba(34,197,94,0.5);
 }
 
 /* TABLE */
 [data-testid="stDataFrame"] {
-    background:white;
+    background:#020617;
     border-radius:12px;
-    border:1px solid #e5e7eb;
+    border:1px solid #38bdf8;
+}
+
+/* TEXT FIX */
+h1,h2,h3,h4,h5,h6,label,p,span,div {
+    color:#e5e7eb !important;
 }
 
 </style>
@@ -104,15 +110,29 @@ st.download_button("⬇ Download Sample Books Excel", buf, "Sample_Books_Templat
 txt_file = st.file_uploader("Upload TRACES 26AS TEXT file", type=["txt"])
 books_file = st.file_uploader("Upload Books Excel", type=["xlsx"])
 
-# ---------------- EXACT 26AS SUMMARY PARSER ----------------
+# ---------------- PART-I SUMMARY PARSER ----------------
 def extract_26as_summary(file):
     text = file.read().decode("utf-8", errors="ignore")
     lines = text.splitlines()
 
     data = []
+    section_map = {}
     in_part1 = False
+    current_tan = ""
 
     for line in lines:
+
+        # --------- SECTION CAPTURE FROM DETAIL BLOCK ----------
+        parts = [p.strip() for p in line.split("^") if p.strip()]
+        for p in parts:
+            if re.fullmatch(r"[A-Z]{4}[0-9]{5}[A-Z]", p):
+                current_tan = p
+
+        sec = next((p for p in parts if re.fullmatch(r"\d+[A-Z]+", p)), None)
+        if current_tan and sec and current_tan not in section_map:
+            section_map[current_tan] = sec
+
+        # --------- PART-I SUMMARY ----------
         if "PART-I - Details of Tax Deducted at Source" in line:
             in_part1 = True
             continue
@@ -121,14 +141,11 @@ def extract_26as_summary(file):
             break
 
         if in_part1:
-            parts = [p.strip() for p in line.split("^") if p.strip()]
-
             if len(parts) >= 6 and re.fullmatch(r"\d+", parts[0]):
-
                 if re.fullmatch(r"[A-Z]{4}[0-9]{5}[A-Z]", parts[2]):
-
                     try:
                         data.append({
+                            "Section": section_map.get(parts[2], ""),
                             "Name of Deductor": parts[1],
                             "TAN of Deductor": parts[2],
                             "Total Amount Paid / Credited": float(parts[-3].replace(",","")),
@@ -150,12 +167,11 @@ if st.button("🚀 RUN RECONCILIATION"):
     structured_26as = extract_26as_summary(txt_file)
 
     if structured_26as.empty:
-        st.error("No valid PART-I summary detected. Please upload original TRACES file.")
+        st.error("No valid PART-I summary detected.")
         st.stop()
 
     books = pd.read_excel(books_file)
 
-    # ---------- RECON ----------
     recon = structured_26as.merge(books, left_on="TAN of Deductor", right_on="TAN", how="outer").fillna(0)
 
     recon["Difference Amount"] = recon["Total Amount Paid / Credited"] - recon["Books Amount"]
@@ -174,7 +190,7 @@ if st.button("🚀 RUN RECONCILIATION"):
     recon["Status"] = recon.apply(status, axis=1)
 
     final_recon = recon[[
-        "Name of Deductor","TAN of Deductor",
+        "Section","Name of Deductor","TAN of Deductor",
         "Total Amount Paid / Credited","Books Amount","Difference Amount",
         "Total TDS Deposited","Books TDS","Difference TDS","Status"
     ]]
