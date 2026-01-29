@@ -212,7 +212,7 @@ if st.button("🚀 RUN RECONCILIATION"):
 
     def status(r):
         if r["Books Amount"] == 0 and r["Total Amount Paid / Credited"] > 0:
-            return "Not filed by vendor"
+            return "Not recorded at books"
         elif r["Difference TDS"] > 0:
             return "Excess-recorded in books"
         elif r["Difference TDS"] < 0:
