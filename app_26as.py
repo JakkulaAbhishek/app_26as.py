@@ -3,79 +3,78 @@ import pandas as pd
 import re
 from io import BytesIO
 
-st.set_page_config(page_title="26AS Professional Tool", layout="wide")
+st.set_page_config(page_title="26AS Professional Reconciliation", layout="wide")
 
-# ---------------- BLACK PROFESSIONAL UI ----------------
+# ---------------- CLEAN WHITE PROFESSIONAL UI ----------------
 st.markdown("""
 <style>
 
 .stApp {
-    background:#05070d;
+    background:#ffffff;
     font-family: 'Segoe UI', sans-serif;
-    color:#e5e7eb;
+    color:#000000;
 }
 
 .block-container {
-    background:#05070d;
-    padding:2rem;
+    background:#ffffff;
+    padding:2.2rem;
 }
 
 /* HEADER */
 .header-box {
-    background: linear-gradient(90deg,#020617,#020617,#1e3a8a);
-    padding:30px;
-    border-radius:18px;
-    margin-bottom:25px;
-    border:1px solid #1e3a8a;
+    background:#f1f5f9;
+    padding:28px;
+    border-radius:14px;
+    margin-bottom:22px;
+    border-left:8px solid #2563eb;
 }
 
-.header-box h1 {color:#facc15 !important;}
-.header-box h3 {color:#38bdf8 !important;}
-.header-box p {color:#e5e7eb !important;}
+.header-box h1 {color:#0f172a !important;}
+.header-box h3 {color:#1e3a8a !important;}
+.header-box p {color:#000000 !important;}
 
 /* ZONES */
 .zone {
-    background: linear-gradient(145deg,#020617,#020617,#020617);
-    padding:18px;
-    border-radius:14px;
-    border:1px solid #1f2937;
-    box-shadow:0 0 20px rgba(56,189,248,0.15);
-    margin-bottom:18px;
+    background:#ffffff;
+    padding:16px;
+    border-radius:12px;
+    border:1px solid #e5e7eb;
+    box-shadow:0 4px 12px rgba(0,0,0,0.05);
+    margin-bottom:16px;
 }
 
 /* FILE UPLOAD */
 [data-testid="stFileUploader"] {
     background:#ffffff;
-    border-radius:12px;
-    padding:18px;
-    border:2px dashed #38bdf8;
+    border-radius:10px;
+    padding:16px;
+    border:2px dashed #2563eb;
 }
 
 /* BUTTONS */
 .stButton button, .stDownloadButton button {
-    background: linear-gradient(90deg,#22c55e,#06b6d4);
-    color:#020617;
-    border-radius:10px;
+    background:#2563eb;
+    color:white;
+    border-radius:8px;
     padding:10px 22px;
-    font-weight:800;
+    font-weight:700;
     border:none;
 }
 
 .stButton button:hover, .stDownloadButton button:hover {
-    transform:scale(1.03);
-    box-shadow:0 0 25px rgba(34,197,94,0.5);
+    background:#1e40af;
 }
 
 /* TABLE */
 [data-testid="stDataFrame"] {
-    background:#020617;
-    border-radius:12px;
-    border:1px solid #38bdf8;
+    background:white;
+    border-radius:10px;
+    border:1px solid #e5e7eb;
 }
 
-/* TEXT FIX */
-h1,h2,h3,h4,h5,h6,label,p,span,div {
-    color:#e5e7eb !important;
+/* FORCE ALL TEXT BLACK */
+h1,h2,h3,h4,h5,h6,p,span,div,label {
+    color:#000000 !important;
 }
 
 </style>
@@ -110,29 +109,30 @@ st.download_button("⬇ Download Sample Books Excel", buf, "Sample_Books_Templat
 txt_file = st.file_uploader("Upload TRACES 26AS TEXT file", type=["txt"])
 books_file = st.file_uploader("Upload Books Excel", type=["xlsx"])
 
-# ---------------- PART-I SUMMARY PARSER ----------------
-def extract_26as_summary(file):
+# ---------------- EXACT SUMMARY + SECTION EXTRACTOR ----------------
+def extract_26as_summary_and_section(file):
     text = file.read().decode("utf-8", errors="ignore")
     lines = text.splitlines()
 
-    data = []
+    summary_data = []
     section_map = {}
     in_part1 = False
     current_tan = ""
 
     for line in lines:
-
-        # --------- SECTION CAPTURE FROM DETAIL BLOCK ----------
         parts = [p.strip() for p in line.split("^") if p.strip()]
+
+        # ---------- TAN TRACKING ----------
         for p in parts:
             if re.fullmatch(r"[A-Z]{4}[0-9]{5}[A-Z]", p):
                 current_tan = p
 
+        # ---------- SECTION FROM TRANSACTION TABLE ----------
         sec = next((p for p in parts if re.fullmatch(r"\d+[A-Z]+", p)), None)
         if current_tan and sec and current_tan not in section_map:
             section_map[current_tan] = sec
 
-        # --------- PART-I SUMMARY ----------
+        # ---------- PART-I SUMMARY ----------
         if "PART-I - Details of Tax Deducted at Source" in line:
             in_part1 = True
             continue
@@ -140,22 +140,24 @@ def extract_26as_summary(file):
         if in_part1 and line.startswith("^PART-"):
             break
 
-        if in_part1:
-            if len(parts) >= 6 and re.fullmatch(r"\d+", parts[0]):
-                if re.fullmatch(r"[A-Z]{4}[0-9]{5}[A-Z]", parts[2]):
-                    try:
-                        data.append({
-                            "Section": section_map.get(parts[2], ""),
-                            "Name of Deductor": parts[1],
-                            "TAN of Deductor": parts[2],
-                            "Total Amount Paid / Credited": float(parts[-3].replace(",","")),
-                            "Total Tax Deducted": float(parts[-2].replace(",","")),
-                            "Total TDS Deposited": float(parts[-1].replace(",",""))
-                        })
-                    except:
-                        pass
+        if in_part1 and len(parts) >= 6 and re.fullmatch(r"\d+", parts[0]):
+            if re.fullmatch(r"[A-Z]{4}[0-9]{5}[A-Z]", parts[2]):
+                try:
+                    summary_data.append({
+                        "Name of Deductor": parts[1],
+                        "TAN of Deductor": parts[2],
+                        "Total Amount Paid / Credited": float(parts[-3].replace(",","")),
+                        "Total Tax Deducted": float(parts[-2].replace(",","")),
+                        "Total TDS Deposited": float(parts[-1].replace(",",""))
+                    })
+                except:
+                    pass
 
-    return pd.DataFrame(data)
+    df = pd.DataFrame(summary_data)
+    if not df.empty:
+        df.insert(0, "Section", df["TAN of Deductor"].map(section_map).fillna(""))
+
+    return df
 
 # ---------------- PROCESS ----------------
 if st.button("🚀 RUN RECONCILIATION"):
@@ -164,7 +166,7 @@ if st.button("🚀 RUN RECONCILIATION"):
         st.error("Please upload both files.")
         st.stop()
 
-    structured_26as = extract_26as_summary(txt_file)
+    structured_26as = extract_26as_summary_and_section(txt_file)
 
     if structured_26as.empty:
         st.error("No valid PART-I summary detected.")
@@ -204,7 +206,7 @@ if st.button("🚀 RUN RECONCILIATION"):
 
     output.seek(0)
 
-    st.success("✅ Exact 26AS reconciliation completed")
+    st.success("✅ Exact 26AS reconciliation completed successfully")
 
     st.download_button("📥 Download Final Reconciliation Excel", output, "26AS_Reconciliation.xlsx")
 
