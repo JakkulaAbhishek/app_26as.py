@@ -6,49 +6,82 @@ from datetime import datetime
 from io import BytesIO
 
 # ---------------- PAGE CONFIG ----------------
+st.set_page_config(page_title="AJ 26AS Tool", layout="wide")
 
-st.set_page_config(page_title="26AS Reconciliation Tool", layout="wide")
-
-# ---------------- COMICAL UI + BRANDING ----------------
-
+# ---------------- BRAND UI + LOGO ----------------
 st.markdown("""
 <style>
 .stApp {
     background: linear-gradient(135deg, #fceabb, #f8b500);
     background-attachment: fixed;
 }
-.main-title {
+
+.logo-box {
+    margin: auto;
+    width: 240px;
+    height: 110px;
+    background: black;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0px 6px 20px rgba(0,0,0,0.4);
+    border: 3px solid #d4af37;
+}
+
+.logo-text {
+    font-size: 64px;
+    font-weight: 900;
+    color: #e10600;
+    letter-spacing: 6px;
+    font-family: 'Trebuchet MS', sans-serif;
+}
+
+.krishna {
+    font-size: 26px;
+    color: gold;
+    position: absolute;
+    margin-top: 70px;
+    margin-left: 130px;
+}
+
+.title {
+    text-align:center;
     font-size: 42px;
     font-weight: 900;
     color: #2c2c2c;
-    text-align: center;
-    text-shadow: 2px 2px #ffffff;
+    margin-top: 15px;
+    text-shadow: 2px 2px white;
 }
-.sub-title {
+
+.sub {
+    text-align:center;
     font-size: 20px;
     font-weight: 700;
-    color: #444;
-    text-align: center;
-    margin-bottom: 10px;
+    color: #333;
 }
-.logo {
-    text-align:center;
-    font-size:60px;
-}
+
 .block-container {
     background-color: rgba(255,255,255,0.90);
     padding: 2rem;
     border-radius: 18px;
 }
 </style>
+
+<div style="position:relative; width:100%; text-align:center;">
+    <div class="logo-box">
+        <div class="logo-text">AJ</div>
+    </div>
+    <div class="krishna">🦚 🎶</div>
+</div>
+
+<div class="title">26AS Reconciliation Automation Tool</div>
+<div class="sub">Tool developed by - Abhishek Jakkula</div>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="logo">🅰️🅹</div>', unsafe_allow_html=True)
-st.markdown('<div class="main-title">26AS Reconciliation Automation Tool</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">Tool developed by - Abhishek Jakkula</div>', unsafe_allow_html=True)
+st.markdown("---")
 
 # ---------------- SAMPLE BOOKS TEMPLATE ----------------
-
 sample_df = pd.DataFrame({
     "Name": ["ABC Pvt Ltd", "XYZ Solutions"],
     "TAN": ["HYDA12345A", "MUMA67890B"],
@@ -61,12 +94,11 @@ sample_df.to_excel(buf, index=False)
 buf.seek(0)
 
 st.download_button("📥 Download Sample Books Excel Template", buf, "Sample_Books_Template.xlsx")
-
 st.info("📌 Please upload **TRACES Form 26AS PDF only** (text-based, not scanned).")
+
 st.markdown("---")
 
 # ---------------- HELPERS ----------------
-
 def clean(text):
     return re.sub(r"\s+", " ", text).strip()
 
@@ -104,8 +136,7 @@ def extract_26as_data(pdf_file):
 
     return pd.DataFrame(records)
 
-# ---------------- UI ----------------
-
+# ---------------- FILE UPLOAD ----------------
 col1, col2 = st.columns(2)
 with col1:
     pdf_file = st.file_uploader("Upload TRACES Form 26AS PDF", type=["pdf"])
@@ -120,7 +151,6 @@ if pdf_file and books_file and st.button("🚀 Run 26AS Reconciliation"):
         st.stop()
 
     df_books = pd.read_excel(books_file)
-
     required = {"Name","TAN","Books Amount","Books TDS"}
     if not required.issubset(df_books.columns):
         st.error("Books file must contain: Name, TAN, Books Amount, Books TDS")
@@ -129,18 +159,8 @@ if pdf_file and books_file and st.button("🚀 Run 26AS Reconciliation"):
     df_26as["TAN"] = df_26as["TAN"].str.upper().str.strip()
     df_books["TAN"] = df_books["TAN"].astype(str).str.upper().str.strip()
 
-    # ---------------- CORE SUMMARIES ----------------
-
-    party_summary = df_26as.groupby(["TAN","Deductor Name"]).agg({
-        "Amount Paid":"sum",
-        "TDS Deposited":"sum"
-    }).reset_index()
-
-    section_pivot = df_26as.pivot_table(
-        values="TDS Deposited",
-        index="Section",
-        aggfunc="sum"
-    ).reset_index()
+    party_summary = df_26as.groupby(["TAN","Deductor Name"]).agg({"Amount Paid":"sum","TDS Deposited":"sum"}).reset_index()
+    section_pivot = df_26as.pivot_table(values="TDS Deposited", index="Section", aggfunc="sum").reset_index()
 
     g26 = df_26as.groupby("TAN").agg({"Amount Paid":"sum","TDS Deposited":"sum"}).reset_index()
     gb = df_books.groupby("TAN").agg({"Books Amount":"sum","Books TDS":"sum"}).reset_index()
@@ -154,16 +174,9 @@ if pdf_file and books_file and st.button("🚀 Run 26AS Reconciliation"):
         "Medium Risk 🟠" if abs(x["TDS Difference"]) > 0 else
         "No Risk 🟢", axis=1)
 
-    recon["Status"] = recon.apply(lambda x:
-        "Matched ✅" if x["Amount Difference"]==0 and x["TDS Difference"]==0 else "Mismatch ❌", axis=1)
-
     missing_in_books = recon[(recon["Books Amount"]==0) & (recon["Amount Paid"]>0)]
-    mismatches = recon[recon["Status"]=="Mismatch ❌"]
-
-    # ---------------- DISPLAY ----------------
 
     st.success("✅ Reconciliation completed")
-
     st.subheader("🔍 TAN-wise Reconciliation")
     st.dataframe(recon, use_container_width=True)
 
@@ -176,15 +189,11 @@ if pdf_file and books_file and st.button("🚀 Run 26AS Reconciliation"):
     st.subheader("⚠️ Missing in Books")
     st.dataframe(missing_in_books, use_container_width=True)
 
-    # ---------------- EXCEL OUTPUT ----------------
-
-    file_name = f"26AS_Reconciliation_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-
+    file_name = f"AJ_26AS_Reconciliation_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
     with pd.ExcelWriter(file_name, engine="openpyxl") as writer:
         df_26as.to_excel(writer, sheet_name="Raw_26AS", index=False)
         df_books.to_excel(writer, sheet_name="Books_Data", index=False)
         recon.to_excel(writer, sheet_name="TAN_Reconciliation", index=False)
-        mismatches.to_excel(writer, sheet_name="Mismatch_Report", index=False)
         missing_in_books.to_excel(writer, sheet_name="Missing_in_Books", index=False)
         party_summary.to_excel(writer, sheet_name="Party_Summary", index=False)
         section_pivot.to_excel(writer, sheet_name="Section_Pivot", index=False)
