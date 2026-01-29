@@ -3,69 +3,73 @@ import pandas as pd
 import re
 from io import BytesIO
 
-st.set_page_config(page_title="26AS Automation Tool", layout="wide")
+st.set_page_config(page_title="26AS Professional Reconciliation", layout="wide")
 
-# ---------------- CLEAN PROFESSIONAL WHITE UI ----------------
+# ---------------- PROFESSIONAL COLORED UI ----------------
 st.markdown("""
 <style>
 
 .stApp {
-    background: #ffffff;
+    background:#f4f6f9;
     font-family: 'Segoe UI', sans-serif;
-    color: #000000;
+    color:#000000;
 }
 
 .block-container {
-    background: #ffffff;
-    padding: 2.5rem;
-}
-
-/* Headings */
-h1,h2,h3,h4,p,label {
-    color:#000000 !important;
-    font-weight:600;
+    background:#ffffff;
+    padding:2.2rem;
+    border-radius:16px;
 }
 
 /* Header */
 .header-box {
-    text-align:center;
-    padding:30px;
+    background: linear-gradient(90deg, #0f172a, #1e3a8a);
+    padding:28px;
     border-radius:16px;
-    background:#ffffff;
-    border-bottom:3px solid #e5e7eb;
     margin-bottom:25px;
-}
-
-.app-logo {
-    font-size:46px;
-    font-weight:900;
-    letter-spacing:3px;
-}
-
-/* File uploader – pure white */
-[data-testid="stFileUploader"] {
-    background:#ffffff;
-    padding:18px;
-    border-radius:10px;
-    border:2px dashed #000000;
-}
-
-/* Buttons – black professional */
-.stButton button, .stDownloadButton button {
-    background:#000000;
     color:white;
-    border-radius:8px;
-    font-weight:600;
+}
+
+.header-box h1, .header-box h3, .header-box p {
+    color:white !important;
+}
+
+/* Section cards */
+.card {
+    background:#ffffff;
+    border-radius:14px;
+    padding:18px;
+    box-shadow:0 6px 18px rgba(0,0,0,0.08);
+    margin-bottom:18px;
+}
+
+/* File uploader */
+[data-testid="stFileUploader"] {
+    background:#f8fafc;
+    border:2px dashed #2563eb;
+    border-radius:12px;
+    padding:18px;
+}
+
+/* Buttons */
+.stButton button, .stDownloadButton button {
+    background: linear-gradient(90deg,#2563eb,#06b6d4);
+    color:white;
+    border-radius:10px;
     padding:10px 20px;
+    font-weight:600;
+    border:none;
 }
 
 .stButton button:hover, .stDownloadButton button:hover {
-    opacity:0.85;
+    opacity:0.9;
 }
 
 /* Tables */
 [data-testid="stDataFrame"] {
-    border:1px solid #000000;
+    background:white;
+    border-radius:12px;
+    border:1px solid #e5e7eb;
 }
 
 </style>
@@ -74,15 +78,16 @@ h1,h2,h3,h4,p,label {
 # ---------------- HEADER ----------------
 st.markdown("""
 <div class="header-box">
-    <div class="app-logo">26AS AUTOMATION TOOL</div>
-    <h2>Professional 26AS Reconciliation System</h2>
+    <h1>26AS PROFESSIONAL RECONCILIATION SYSTEM</h1>
+    <h3>Exact TRACES Matching Engine</h3>
     <p>Developed by Abhishek Jakkula</p>
 </div>
 """, unsafe_allow_html=True)
 
-st.info("Upload TRACES Form 26AS TEXT file (.txt) and Books Excel")
+# ---------------- INFO ----------------
+st.markdown('<div class="card">Upload original TRACES Form 26AS (.txt) and Books Excel</div>', unsafe_allow_html=True)
 
-# ---------------- SAMPLE BOOKS DOWNLOAD ----------------
+# ---------------- SAMPLE TEMPLATE ----------------
 sample_books = pd.DataFrame({
     "Party Name": ["ABC Pvt Ltd"],
     "TAN": ["HYDA00000A"],
@@ -94,13 +99,13 @@ buf = BytesIO()
 sample_books.to_excel(buf, index=False)
 buf.seek(0)
 
-st.download_button("⬇ Download Sample Books Excel Template", buf, "Sample_Books_Template.xlsx")
+st.download_button("⬇ Download Sample Books Excel", buf, "Sample_Books_Template.xlsx")
 
 # ---------------- FILE UPLOAD ----------------
 txt_file = st.file_uploader("Upload TRACES 26AS TEXT file", type=["txt"])
 books_file = st.file_uploader("Upload Books Excel", type=["xlsx"])
 
-# ---------------- IMPROVED TRACES PARSER ----------------
+# ---------------- EXACT TRACES PARSER ----------------
 def extract_26as_from_text(file):
     text = file.read().decode("utf-8", errors="ignore")
     lines = text.splitlines()
@@ -112,37 +117,35 @@ def extract_26as_from_text(file):
     for line in lines:
         parts = [p.strip() for p in line.split("^") if p.strip()]
 
-        # TAN detection
+        # TAN + Name
         for i, p in enumerate(parts):
             if re.fullmatch(r"[A-Z]{4}[0-9]{5}[A-Z]", p):
                 current_tan = p
                 if i > 0:
-                    possible_name = parts[i-1]
-                    if not re.search("TAN|DEDUCTOR|SECTION", possible_name.upper()):
-                        current_name = possible_name
+                    current_name = parts[i-1]
 
-        # Section detection
+        # Section
         section = next((p for p in parts if re.fullmatch(r"\d+[A-Z]+", p)), "")
 
-        # Numeric extraction
-        numbers = []
+        # Numbers in order
+        nums = []
         for p in parts:
             q = p.replace(",", "")
-            if re.fullmatch(r"-?\d+(\.\d+)?", q):
-                numbers.append(float(q))
+            if re.fullmatch(r"\d+(\.\d+)?", q):
+                nums.append(float(q))
 
-        if current_name and current_tan and section and len(numbers) >= 2:
+        # TRACES structure: amount appears before TDS
+        if current_name and current_tan and section and len(nums) >= 4:
             try:
-                amount = max(numbers)
-                tds_candidates = [n for n in numbers if n < amount]
-                tds = max(tds_candidates) if tds_candidates else numbers[-1]
+                amount = nums[-4]   # usually "Amount Paid/Credited"
+                tds = nums[-3]      # usually "Tax Deducted"
 
                 records.append({
                     "Section": section,
                     "Name of Deductor": current_name,
                     "TAN of Deductor": current_tan,
-                    "Amount": round(amount,2),
-                    "TDS": round(tds,2)
+                    "Amount": amount,
+                    "TDS": tds
                 })
             except:
                 pass
@@ -159,7 +162,7 @@ if st.button("RUN RECONCILIATION"):
     raw26 = extract_26as_from_text(txt_file)
 
     if raw26.empty:
-        st.error("No usable 26AS data detected.")
+        st.error("No usable 26AS data detected. Please upload original TRACES file.")
         st.stop()
 
     # ---------- STRUCTURED 26AS ----------
@@ -175,14 +178,14 @@ if st.button("RUN RECONCILIATION"):
     # ---------- PARTY PIVOT ----------
     pivot_party = structured_26as.groupby(
         ["Name of Deductor", "TAN of Deductor"], as_index=False
-    )[["Total Amount Paid / Credited", "Total TDS Deposited"]].sum()
+    )[["Total Amount Paid / Credited","Total TDS Deposited"]].sum()
 
     # ---------- BOOKS ----------
     books = pd.read_excel(books_file)
 
     # ---------- RECON ----------
     recon26 = structured_26as.groupby("TAN of Deductor", as_index=False)[
-        ["Total Amount Paid / Credited", "Total TDS Deposited"]
+        ["Total Amount Paid / Credited","Total TDS Deposited"]
     ].sum()
 
     recon = recon26.merge(books, left_on="TAN of Deductor", right_on="TAN", how="outer").fillna(0)
@@ -213,7 +216,7 @@ if st.button("RUN RECONCILIATION"):
         "26AS TDS","Books TDS","Difference TDS","Status"
     ]
 
-    # ---------- EXCEL EXPORT ----------
+    # ---------- EXPORT ----------
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         structured_26as.to_excel(writer, sheet_name="26AS_Structured", index=False)
@@ -225,7 +228,7 @@ if st.button("RUN RECONCILIATION"):
 
     st.success("Reconciliation completed successfully")
 
-    st.download_button("Download Final Reconciliation Excel", output, "26AS_Reconciliation.xlsx")
+    st.download_button("Download Final Excel", output, "26AS_Reconciliation.xlsx")
 
     st.subheader("Preview – 26AS vs Books")
     st.dataframe(final_recon, use_container_width=True)
