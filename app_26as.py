@@ -47,7 +47,7 @@ st.markdown("""
 
 /* 🌤 FILE UPLOADER – SKY BLUE CARD */
 [data-testid="stFileUploader"] {
-    background: linear-gradient(135deg,#e0f2fe,#bae6fd) !important;
+    background: skyblue(135deg,#e0f2fe,#bae6fd) !important;
     border-radius:18px !important;
     padding:22px !important;
     border:2px dashed #0284c7 !important;
@@ -56,7 +56,7 @@ st.markdown("""
 
 /* Uploader text */
 [data-testid="stFileUploader"] * {
-    color:darkredandblueandyellowmix !important;
+    color:darkred !important;
     font-weight:600 !important;
 }
 
