@@ -5,92 +5,67 @@ from io import BytesIO
 
 st.set_page_config(page_title="26AS Automation Tool", layout="wide")
 
-# ---------------- GOOGLE STYLE PROFESSIONAL THEME ----------------
+# ---------------- CLEAN PROFESSIONAL WHITE UI ----------------
 st.markdown("""
 <style>
 
-/* ----------- GOOGLE-STYLE PROFESSIONAL THEME ----------- */
-
 .stApp {
-    background: linear-gradient(135deg, #f8fafc, #eef2f7);
+    background: #ffffff;
     font-family: 'Segoe UI', sans-serif;
-    color: #1f2937;
+    color: #000000;
 }
 
 .block-container {
-    background: rgba(255,255,255,0.88);
-    backdrop-filter: blur(12px);
+    background: #ffffff;
     padding: 2.5rem;
-    border-radius: 20px;
-    box-shadow: 0px 10px 30px rgba(0,0,0,0.08);
 }
 
 /* Headings */
-h1 {
-    color:#0f172a !important;
-    font-weight:800;
-    letter-spacing:0.3px;
+h1,h2,h3,h4,p,label {
+    color:#000000 !important;
+    font-weight:600;
 }
 
-h2,h3,h4,p,label {
-    color:#1f2937 !important;
-}
-
-/* Header card */
+/* Header */
 .header-box {
     text-align:center;
-    padding:35px 25px;
-    border-radius:24px;
-    background: linear-gradient(135deg, #ffffff, #f1f5f9);
-    box-shadow: 0px 15px 35px rgba(0,0,0,0.08);
-    margin-bottom:30px;
+    padding:30px;
+    border-radius:16px;
+    background:#ffffff;
+    border-bottom:3px solid #e5e7eb;
+    margin-bottom:25px;
 }
 
-/* App logo */
 .app-logo {
-    font-size:52px;
+    font-size:46px;
     font-weight:900;
-    background: linear-gradient(90deg, #2563eb, #06b6d4);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
     letter-spacing:3px;
 }
 
-/* Sub text */
-.subtext {
-    color:#475569;
-    font-size:15px;
-}
-
-/* Shloka */
-.shloka {
-    color:#0f766e;
-    font-style: italic;
-    font-size:16px;
-}
-
-/* Buttons */
-.stDownloadButton button, .stButton button {
-    background: linear-gradient(90deg, #2563eb, #06b6d4);
-    color:blue;
-    border:none;
-    padding:10px 22px;
-    border-radius:12px;
-    font-weight:600;
-    transition:0.3s;
-}
-
-.stDownloadButton button:hover, .stButton button:hover {
-    transform: scale(1.03);
-    box-shadow:0px 8px 22px rgba(37,99,235,0.35);
-}
-
-/* File uploader */
+/* File uploader – pure white */
 [data-testid="stFileUploader"] {
-    background:#f8fafc;
+    background:#ffffff;
     padding:18px;
-    border-radius:14px;
-    border:1px dashed #cbd5e1;
+    border-radius:10px;
+    border:2px dashed #000000;
+}
+
+/* Buttons – black professional */
+.stButton button, .stDownloadButton button {
+    background:#000000;
+    color:white;
+    border-radius:8px;
+    font-weight:600;
+    padding:10px 20px;
+}
+
+.stButton button:hover, .stDownloadButton button:hover {
+    opacity:0.85;
+}
+
+/* Tables */
+[data-testid="stDataFrame"] {
+    border:1px solid #000000;
 }
 
 </style>
@@ -99,11 +74,9 @@ h2,h3,h4,p,label {
 # ---------------- HEADER ----------------
 st.markdown("""
 <div class="header-box">
-    <div class="app-logo">26AS AUTOMATION</div>
-    <h1>Professional 26AS Reconciliation Tool</h1>
-    <p class="subtext">Smart. Accurate. CA-Grade Automation ⚡</p>
-    <p class="shloka">कर्मण्येवाधिकारस्ते मा फलेषु कदाचन</p>
-    <p class="subtext">Developed by Abhishek Jakkula</p>
+    <div class="app-logo">26AS AUTOMATION TOOL</div>
+    <h2>Professional 26AS Reconciliation System</h2>
+    <p>Developed by Abhishek Jakkula</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -127,7 +100,7 @@ st.download_button("⬇ Download Sample Books Excel Template", buf, "Sample_Book
 txt_file = st.file_uploader("Upload TRACES 26AS TEXT file", type=["txt"])
 books_file = st.file_uploader("Upload Books Excel", type=["xlsx"])
 
-# ---------------- ROBUST TRACES PARSER ----------------
+# ---------------- IMPROVED TRACES PARSER ----------------
 def extract_26as_from_text(file):
     text = file.read().decode("utf-8", errors="ignore")
     lines = text.splitlines()
@@ -148,18 +121,28 @@ def extract_26as_from_text(file):
                     if not re.search("TAN|DEDUCTOR|SECTION", possible_name.upper()):
                         current_name = possible_name
 
-        # Transaction detection
+        # Section detection
         section = next((p for p in parts if re.fullmatch(r"\d+[A-Z]+", p)), "")
-        numbers = [p.replace(",", "") for p in parts if re.fullmatch(r"-?\d+(\.\d+)?", p.replace(",", ""))]
+
+        # Numeric extraction
+        numbers = []
+        for p in parts:
+            q = p.replace(",", "")
+            if re.fullmatch(r"-?\d+(\.\d+)?", q):
+                numbers.append(float(q))
 
         if current_name and current_tan and section and len(numbers) >= 2:
             try:
+                amount = max(numbers)
+                tds_candidates = [n for n in numbers if n < amount]
+                tds = max(tds_candidates) if tds_candidates else numbers[-1]
+
                 records.append({
                     "Section": section,
                     "Name of Deductor": current_name,
                     "TAN of Deductor": current_tan,
-                    "Amount": float(numbers[-2]),
-                    "TDS": float(numbers[-1])
+                    "Amount": round(amount,2),
+                    "TDS": round(tds,2)
                 })
             except:
                 pass
@@ -167,7 +150,7 @@ def extract_26as_from_text(file):
     return pd.DataFrame(records)
 
 # ---------------- PROCESS ----------------
-if st.button("🚀 RUN RECONCILIATION"):
+if st.button("RUN RECONCILIATION"):
 
     if not txt_file or not books_file:
         st.error("Please upload both files.")
@@ -176,31 +159,28 @@ if st.button("🚀 RUN RECONCILIATION"):
     raw26 = extract_26as_from_text(txt_file)
 
     if raw26.empty:
-        st.error("❌ No usable 26AS data detected. Please upload original TRACES .txt file.")
+        st.error("No usable 26AS data detected.")
         st.stop()
 
-    # ---------- SHEET 1 : STRUCTURED 26AS ----------
+    # ---------- STRUCTURED 26AS ----------
     structured_26as = raw26.groupby(
         ["Section", "Name of Deductor", "TAN of Deductor"], as_index=False
     ).agg({"Amount": "sum", "TDS": "sum"})
 
     structured_26as.columns = [
-        "Section",
-        "Name of Deductor",
-        "TAN of Deductor",
-        "Total Amount Paid / Credited",
-        "Total TDS Deposited"
+        "Section","Name of Deductor","TAN of Deductor",
+        "Total Amount Paid / Credited","Total TDS Deposited"
     ]
 
-    # ---------- SHEET 2 : PARTY PIVOT ----------
+    # ---------- PARTY PIVOT ----------
     pivot_party = structured_26as.groupby(
         ["Name of Deductor", "TAN of Deductor"], as_index=False
     )[["Total Amount Paid / Credited", "Total TDS Deposited"]].sum()
 
-    # ---------- SHEET 3 : BOOKS ----------
+    # ---------- BOOKS ----------
     books = pd.read_excel(books_file)
 
-    # ---------- SHEET 4 : RECON ----------
+    # ---------- RECON ----------
     recon26 = structured_26as.groupby("TAN of Deductor", as_index=False)[
         ["Total Amount Paid / Credited", "Total TDS Deposited"]
     ].sum()
@@ -212,55 +192,40 @@ if st.button("🚀 RUN RECONCILIATION"):
 
     def status(r):
         if r["Books Amount"] == 0 and r["Total Amount Paid / Credited"] > 0:
-            return "Not recorded at books"
+            return "Not in books"
         elif r["Difference TDS"] > 0:
-            return "Excess-recorded in books"
+            return "Under-recorded"
         elif r["Difference TDS"] < 0:
-            return "Less in books"
+            return "Excess in books"
         else:
             return "Matched"
 
     recon["Status"] = recon.apply(status, axis=1)
 
     final_recon = recon[[
-        "TAN of Deductor",
-        "Total Amount Paid / Credited",
-        "Books Amount",
-        "Difference Amount",
-        "Total TDS Deposited",
-        "Books TDS",
-        "Difference TDS",
-        "Status"
+        "TAN of Deductor","Total Amount Paid / Credited","Books Amount",
+        "Difference Amount","Total TDS Deposited","Books TDS",
+        "Difference TDS","Status"
     ]]
 
     final_recon.columns = [
-        "TAN",
-        "26AS Amount",
-        "Books Amount",
-        "Difference Amount",
-        "26AS TDS",
-        "Books TDS",
-        "Difference TDS",
-        "Status"
+        "TAN","26AS Amount","Books Amount","Difference Amount",
+        "26AS TDS","Books TDS","Difference TDS","Status"
     ]
 
     # ---------- EXCEL EXPORT ----------
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         structured_26as.to_excel(writer, sheet_name="26AS_Structured", index=False)
-        pivot_party.to_excel(writer, sheet_name="26AS_Pivot_Party", index=False)
+        pivot_party.to_excel(writer, sheet_name="26AS_Party_Pivot", index=False)
         books.to_excel(writer, sheet_name="Books_Data", index=False)
         final_recon.to_excel(writer, sheet_name="26AS_vs_Books", index=False)
 
     output.seek(0)
 
-    st.success("✅ Reconciliation completed successfully")
+    st.success("Reconciliation completed successfully")
 
-    st.download_button(
-        "📥 Download Final Reconciliation Excel",
-        data=output,
-        file_name="26AS_Reconciliation.xlsx"
-    )
+    st.download_button("Download Final Reconciliation Excel", output, "26AS_Reconciliation.xlsx")
 
     st.subheader("Preview – 26AS vs Books")
     st.dataframe(final_recon, use_container_width=True)
