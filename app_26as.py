@@ -56,7 +56,7 @@ st.markdown("""
 
 /* Uploader text */
 [data-testid="stFileUploader"] * {
-    color:white !important;
+    color:darkblue !important;
     font-weight:600 !important;
 }
 
