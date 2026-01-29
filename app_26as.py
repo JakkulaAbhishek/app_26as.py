@@ -72,7 +72,7 @@ h2,h3,h4,p,label {
 /* Buttons */
 .stDownloadButton button, .stButton button {
     background: linear-gradient(90deg, #2563eb, #06b6d4);
-    color:white;
+    color:blue;
     border:none;
     padding:10px 22px;
     border-radius:12px;
