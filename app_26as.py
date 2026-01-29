@@ -5,7 +5,7 @@ from io import BytesIO
 
 st.set_page_config(page_title="26AS Professional Reconciliation", layout="wide")
 
-# ---------------- CLEAN READABLE WHITE UI ----------------
+# ---------------- ULTRA READABLE WHITE UI ----------------
 st.markdown("""
 <style>
 
@@ -62,18 +62,22 @@ st.markdown("""
     margin-bottom:16px;
 }
 
-/* FILE UPLOAD */
+/* FILE UPLOADER – FORCE WHITE & BLACK TEXT */
 [data-testid="stFileUploader"] {
-    background:#ffffff;
-    border-radius:10px;
-    padding:16px;
-    border:2px dashed #2563eb;
+    background:#ffffff !important;
+    border-radius:12px !important;
+    padding:18px !important;
+    border:2px dashed #2563eb !important;
+}
+
+[data-testid="stFileUploader"] * {
+    color:#000000 !important;
 }
 
 /* BUTTONS */
 .stButton button, .stDownloadButton button {
     background: linear-gradient(90deg,#2563eb,#06b6d4);
-    color:white;
+    color:white !important;
     border-radius:10px;
     padding:10px 22px;
     font-weight:700;
@@ -91,7 +95,7 @@ st.markdown("""
     border:1px solid #e5e7eb;
 }
 
-/* FORCE ALL TEXT DARK */
+/* FORCE ALL TEXT BLACK */
 h1,h2,h3,h4,h5,h6,p,span,div,label {
     color:#000000 !important;
 }
@@ -105,7 +109,7 @@ st.markdown("""
     <div class="header-title">26AS PROFESSIONAL RECONCILIATION TOOL</div>
     <div class="header-sub">Exact TRACES Matching Engine</div>
     <div class="krishna">🦚 श्री कृष्णाय नमः 🙏</div>
-    <div class="shloka">कर्मण्येवाधिकारस्ते मा फलेषु कदाचन ।<br>
+    <div class="shloka">कर्मण्येवाधिकारस्ते मा फलेषु कदाचन ।  
     मा कर्मफलहेतुर्भूर्मा ते सङ्गोऽस्त्वकर्मणि ॥ (Bhagavad Gita 2.47)</div>
     <p style="margin-top:8px;">Developed by Abhishek Jakkula</p>
 </div>
@@ -223,7 +227,7 @@ if st.button("🚀 RUN RECONCILIATION"):
     # ---------- EXPORT ----------
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        structured_26as.to_excel(writer, sheet_name="26AS_Part1_Summary", index=False)
+        structured_26as.to_excel(writer, sheet_name="26AS_Party_Wise", index=False)
         books.to_excel(writer, sheet_name="Books_Data", index=False)
         final_recon.to_excel(writer, sheet_name="26AS_vs_Books", index=False)
 
