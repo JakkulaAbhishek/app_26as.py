@@ -3,52 +3,107 @@ import pandas as pd
 import re
 from io import BytesIO
 
-st.set_page_config(page_title="AJ 26AS Tool", layout="wide")
+st.set_page_config(page_title="26AS Automation Tool", layout="wide")
 
-# ---------------- BEAUTIFUL COLOR THEME ----------------
+# ---------------- GOOGLE STYLE PROFESSIONAL THEME ----------------
 st.markdown("""
 <style>
+
+/* ----------- GOOGLE-STYLE PROFESSIONAL THEME ----------- */
+
 .stApp {
-    background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
-    color: white;
+    background: linear-gradient(135deg, #f8fafc, #eef2f7);
+    font-family: 'Segoe UI', sans-serif;
+    color: #1f2937;
 }
+
 .block-container {
-    background: rgba(0,0,0,0.65);
-    padding: 2rem;
-    border-radius: 18px;
+    background: rgba(255,255,255,0.88);
+    backdrop-filter: blur(12px);
+    padding: 2.5rem;
+    border-radius: 20px;
+    box-shadow: 0px 10px 30px rgba(0,0,0,0.08);
 }
-h1,h2,h3,h4,p,label {
-    color: white !important;
+
+/* Headings */
+h1 {
+    color:#0f172a !important;
+    font-weight:800;
+    letter-spacing:0.3px;
 }
+
+h2,h3,h4,p,label {
+    color:#1f2937 !important;
+}
+
+/* Header card */
 .header-box {
     text-align:center;
-    padding:25px;
-    border-radius:20px;
-    border:2px solid #ff2d2d;
-    box-shadow:0px 0px 20px #ff2d2d;
-    margin-bottom:20px;
+    padding:35px 25px;
+    border-radius:24px;
+    background: linear-gradient(135deg, #ffffff, #f1f5f9);
+    box-shadow: 0px 15px 35px rgba(0,0,0,0.08);
+    margin-bottom:30px;
 }
-.aj {
-    font-size:64px;
+
+/* App logo */
+.app-logo {
+    font-size:52px;
     font-weight:900;
-    color:#ff2d2d;
-    letter-spacing:6px;
+    background: linear-gradient(90deg, #2563eb, #06b6d4);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing:3px;
 }
+
+/* Sub text */
+.subtext {
+    color:#475569;
+    font-size:15px;
+}
+
+/* Shloka */
 .shloka {
-    color: #ffd700;
+    color:#0f766e;
     font-style: italic;
+    font-size:16px;
 }
+
+/* Buttons */
+.stDownloadButton button, .stButton button {
+    background: linear-gradient(90deg, #2563eb, #06b6d4);
+    color:white;
+    border:none;
+    padding:10px 22px;
+    border-radius:12px;
+    font-weight:600;
+    transition:0.3s;
+}
+
+.stDownloadButton button:hover, .stButton button:hover {
+    transform: scale(1.03);
+    box-shadow:0px 8px 22px rgba(37,99,235,0.35);
+}
+
+/* File uploader */
+[data-testid="stFileUploader"] {
+    background:#f8fafc;
+    padding:18px;
+    border-radius:14px;
+    border:1px dashed #cbd5e1;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------- HEADER ----------------
 st.markdown("""
 <div class="header-box">
-    <div class="aj">AJ</div>
-    <h1>26AS Reconciliation Automation Tool</h1>
-    <h4>🦚 Lord Krishna Blessings</h4>
+    <div class="app-logo">26AS AUTOMATION</div>
+    <h1>Professional 26AS Reconciliation Tool</h1>
+    <p class="subtext">Smart. Accurate. CA-Grade Automation ⚡</p>
     <p class="shloka">कर्मण्येवाधिकारस्ते मा फलेषु कदाचन</p>
-    <p style="color:#cccccc;">Tool developed by - Abhishek Jakkula</p>
+    <p class="subtext">Developed by Abhishek Jakkula</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -159,9 +214,9 @@ if st.button("🚀 RUN RECONCILIATION"):
         if r["Books Amount"] == 0 and r["Total Amount Paid / Credited"] > 0:
             return "Not filed by vendor"
         elif r["Difference TDS"] > 0:
-            return "Under-recorded in books"
+            return "Excess-recorded in books"
         elif r["Difference TDS"] < 0:
-            return "Excess in books"
+            return "Less in books"
         else:
             return "Matched"
 
@@ -204,7 +259,7 @@ if st.button("🚀 RUN RECONCILIATION"):
     st.download_button(
         "📥 Download Final Reconciliation Excel",
         data=output,
-        file_name="AJ_26AS_Reconciliation.xlsx"
+        file_name="26AS_Reconciliation.xlsx"
     )
 
     st.subheader("Preview – 26AS vs Books")
