@@ -5,7 +5,7 @@ from io import BytesIO
 
 st.set_page_config(page_title="26AS Professional Reconciliation", layout="wide")
 
-# ---------------- ULTRA READABLE WHITE UI ----------------
+# ---------------- READABLE UI WITH SKY-BLUE UPLOAD BOXES ----------------
 st.markdown("""
 <style>
 
@@ -62,19 +62,21 @@ st.markdown("""
     margin-bottom:16px;
 }
 
-/* FILE UPLOADER – FORCE WHITE & BLACK TEXT */
+/* FILE UPLOADER – SKY BLUE */
 [data-testid="stFileUploader"] {
-    background:#ffffff !important;
-    border-radius:12px !important;
-    padding:18px !important;
-    border:2px dashed #2563eb !important;
+    background: linear-gradient(135deg,#e0f2fe,#bae6fd) !important;
+    border-radius:14px !important;
+    padding:20px !important;
+    border:2px dashed #0284c7 !important;
 }
 
+/* All text inside uploader */
 [data-testid="stFileUploader"] * {
-    color:#000000 !important;
+    color:#020617 !important;
+    font-weight:600;
 }
 
-/* BUTTONS */
+/* Buttons */
 .stButton button, .stDownloadButton button {
     background: linear-gradient(90deg,#2563eb,#06b6d4);
     color:white !important;
@@ -88,14 +90,14 @@ st.markdown("""
     background: linear-gradient(90deg,#1d4ed8,#0891b2);
 }
 
-/* TABLE */
+/* Table */
 [data-testid="stDataFrame"] {
     background:white;
     border-radius:10px;
     border:1px solid #e5e7eb;
 }
 
-/* FORCE ALL TEXT BLACK */
+/* Force dark text everywhere */
 h1,h2,h3,h4,h5,h6,p,span,div,label {
     color:#000000 !important;
 }
@@ -109,8 +111,10 @@ st.markdown("""
     <div class="header-title">26AS PROFESSIONAL RECONCILIATION TOOL</div>
     <div class="header-sub">Exact TRACES Matching Engine</div>
     <div class="krishna">🦚 श्री कृष्णाय नमः 🙏</div>
-    <div class="shloka">कर्मण्येवाधिकारस्ते मा फलेषु कदाचन ।  
-    मा कर्मफलहेतुर्भूर्मा ते सङ्गोऽस्त्वकर्मणि ॥ (Bhagavad Gita 2.47)</div>
+    <div class="shloka">
+        कर्मण्येवाधिकारस्ते मा फलेषु कदाचन ।<br>
+        मा कर्मफलहेतुर्भूर्मा ते सङ्गोऽस्त्वकर्मणि ॥ (Bhagavad Gita 2.47)
+    </div>
     <p style="margin-top:8px;">Developed by Abhishek Jakkula</p>
 </div>
 """, unsafe_allow_html=True)
