@@ -47,7 +47,7 @@ st.markdown("""
 
 /* 🌤 FILE UPLOADER – SKY BLUE CARD */
 [data-testid="stFileUploader"] {
-    background: skyblue(135deg,#e0f2fe,#bae6fd) !important;
+    background: linear-gradient(135deg,#e0f2fe,#bae6fd) !important;
     border-radius:18px !important;
     padding:22px !important;
     border:2px dashed #0284c7 !important;
@@ -122,6 +122,20 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="zone">📄 Upload original TRACES Form 26AS (.txt) and Books Excel</div>', unsafe_allow_html=True)
+
+# ---------------- SAMPLE BOOKS TEMPLATE DOWNLOAD ----------------
+sample_books = pd.DataFrame({
+    "Party Name": ["ABC Pvt Ltd"],
+    "TAN": ["HYDA00000A"],
+    "Books Amount": [100000],
+    "Books TDS": [10000]
+})
+
+buf = BytesIO()
+sample_books.to_excel(buf, index=False)
+buf.seek(0)
+
+st.download_button("⬇ Download Sample Books Excel Template", buf, "Sample_Books_Template.xlsx")
 
 # ---------------- FILE UPLOAD ----------------
 txt_file = st.file_uploader("Upload TRACES 26AS TEXT file", type=["txt"])
