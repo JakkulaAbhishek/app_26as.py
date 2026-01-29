@@ -1,16 +1,15 @@
 import streamlit as st
-import pdfplumber
 import pandas as pd
 import re
 from io import BytesIO
 
 st.set_page_config(page_title="AJ 26AS Tool", layout="wide")
 
-# ---------------- BLACK UI ----------------
+# ---------------- UI ----------------
 st.markdown("""
 <style>
-body {background-color:black;color:white;}
-.block-container {background-color:black;}
+body {background:black;color:white;}
+.block-container {background:black;}
 h1,h2,h3 {color:white;}
 </style>
 """, unsafe_allow_html=True)
@@ -21,43 +20,40 @@ st.markdown("""
 <hr>
 """, unsafe_allow_html=True)
 
-st.info("Upload TRACES Form 26AS PDF (text-based) and Books Excel")
+st.info("Upload TRACES Form 26AS TEXT file (.txt) and Books Excel")
 
-# ---------------- UPLOAD ----------------
-pdf_file = st.file_uploader("Upload TRACES 26AS PDF", type=["pdf"])
+txt_file = st.file_uploader("Upload TRACES 26AS TEXT file", type=["txt"])
 books_file = st.file_uploader("Upload Books Excel", type=["xlsx"])
 
-# ---------------- CORE EXTRACTOR ----------------
-def extract_26as(pdf):
+# ---------------- TRACES TEXT PARSER ----------------
+def extract_26as_from_text(file):
+    text = file.read().decode("utf-8", errors="ignore")
+
+    main_blocks = re.split(r"\n\d+\^", text)
+
     data = []
-    current_name, current_tan = None, None
 
-    with pdfplumber.open(pdf) as pdf:
-        for page in pdf.pages:
-            text = page.extract_text() or ""
+    for block in main_blocks:
+        name = re.search(r"\^([A-Z0-9 &().,-]+)\^([A-Z]{4}\w{5}[A-Z])", block)
+        if not name:
+            continue
 
-            name = re.search(r"Name of Deductor\s*:\s*(.*)", text)
-            tan = re.search(r"TAN of Deductor\s*:\s*([A-Z0-9]+)", text)
+        party = name.group(1).strip()
+        tan = name.group(2).strip()
 
-            if name: current_name = name.group(1).strip()
-            if tan: current_tan = tan.group(1).strip()
+        rows = re.findall(
+            r"\^(\d+[A-Z]+)\^.*?\^([\d\-,.]+)\^([\d\-,.]+)\^([\d\-,.]+)\^",
+            block
+        )
 
-            tables = page.extract_tables()
-
-            for table in tables:
-                for row in table:
-                    if row and len(row) >= 8:
-                        if row[1] and re.search(r"\d+[A-Z]", str(row[1])):
-                            try:
-                                data.append({
-                                    "Section": row[1],
-                                    "Name of Deductor": current_name,
-                                    "TAN": current_tan,
-                                    "Amount": float(str(row[6]).replace(",","")),
-                                    "TDS": float(str(row[7]).replace(",",""))
-                                })
-                            except:
-                                pass
+        for r in rows:
+            data.append({
+                "Section": r[0],
+                "Name of Deductor": party,
+                "TAN of Deductor": tan,
+                "Amount": float(r[1].replace(",","")),
+                "TDS": float(r[3].replace(",",""))
+            })
 
     df = pd.DataFrame(data)
     return df
@@ -65,19 +61,19 @@ def extract_26as(pdf):
 # ---------------- PROCESS ----------------
 if st.button("🚀 RUN RECONCILIATION"):
 
-    if not pdf_file or not books_file:
-        st.error("Please upload both files.")
+    if not txt_file or not books_file:
+        st.error("Upload both files.")
         st.stop()
 
-    raw26 = extract_26as(pdf_file)
+    raw26 = extract_26as_from_text(txt_file)
 
     if raw26.empty:
         st.error("No usable 26AS data detected.")
         st.stop()
 
-    # ---------- SHEET 1 : STRUCTURED 26AS ----------
+    # -------- Sheet 1: Structured 26AS --------
     structured_26as = raw26.groupby(
-        ["Section","Name of Deductor","TAN"], as_index=False
+        ["Section","Name of Deductor","TAN of Deductor"], as_index=False
     ).agg({
         "Amount":"sum",
         "TDS":"sum"
@@ -91,34 +87,70 @@ if st.button("🚀 RUN RECONCILIATION"):
         "Total TDS Deposited"
     ]
 
-    # ---------- SHEET 2 : PIVOT ----------
-    pivot_26as = structured_26as.groupby("Section", as_index=False)[
-        ["Total Amount Paid / Credited","Total TDS Deposited"]
-    ].sum()
+    # -------- Sheet 2: Party Pivot --------
+    pivot_party = structured_26as.groupby(
+        ["Name of Deductor","TAN of Deductor"], as_index=False
+    )[["Total Amount Paid / Credited","Total TDS Deposited"]].sum()
 
-    # ---------- SHEET 3 : BOOKS ----------
+    # -------- Sheet 3: Books --------
     books = pd.read_excel(books_file)
 
-    # ---------- SHEET 4 : RECONCILIATION ----------
-    recon = structured_26as.groupby("TAN of Deductor", as_index=False)[
+    # -------- Sheet 4: Reconciliation --------
+    recon26 = structured_26as.groupby("TAN of Deductor", as_index=False)[
         ["Total Amount Paid / Credited","Total TDS Deposited"]
     ].sum()
 
-    recon = recon.merge(books, left_on="TAN of Deductor", right_on="TAN", how="outer")
+    recon = recon26.merge(books, left_on="TAN of Deductor", right_on="TAN", how="outer")
 
+    recon["Total Amount Paid / Credited"] = recon["Total Amount Paid / Credited"].fillna(0)
+    recon["Total TDS Deposited"] = recon["Total TDS Deposited"].fillna(0)
     recon["Books Amount"] = recon["Books Amount"].fillna(0)
     recon["Books TDS"] = recon["Books TDS"].fillna(0)
 
-    recon["Amount Difference"] = recon["Total Amount Paid / Credited"] - recon["Books Amount"]
-    recon["TDS Difference"] = recon["Total TDS Deposited"] - recon["Books TDS"]
+    recon["Difference Amount"] = recon["Total Amount Paid / Credited"] - recon["Books Amount"]
+    recon["Difference TDS"] = recon["Total TDS Deposited"] - recon["Books TDS"]
 
-    # ---------- EXCEL EXPORT ----------
+    def status(row):
+        if row["Books Amount"] == 0 and row["Total Amount Paid / Credited"] > 0:
+            return "Not filed by vendor"
+        elif row["Difference TDS"] > 0:
+            return "Under-recorded in books"
+        elif row["Difference TDS"] < 0:
+            return "Excess in books"
+        else:
+            return "Matched"
+
+    recon["Status"] = recon.apply(status, axis=1)
+
+    final_recon = recon[[
+        "TAN of Deductor",
+        "Total Amount Paid / Credited",
+        "Books Amount",
+        "Difference Amount",
+        "Total TDS Deposited",
+        "Books TDS",
+        "Difference TDS",
+        "Status"
+    ]]
+
+    final_recon.columns = [
+        "TAN",
+        "26AS Amount",
+        "Books Amount",
+        "Difference Amount",
+        "26AS TDS",
+        "Books TDS",
+        "Difference TDS",
+        "Status"
+    ]
+
+    # -------- Excel Export --------
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         structured_26as.to_excel(writer, sheet_name="26AS_Structured", index=False)
-        pivot_26as.to_excel(writer, sheet_name="26AS_Pivot", index=False)
+        pivot_party.to_excel(writer, sheet_name="26AS_Pivot_Party", index=False)
         books.to_excel(writer, sheet_name="Books_Data", index=False)
-        recon.to_excel(writer, sheet_name="26AS_vs_Books", index=False)
+        final_recon.to_excel(writer, sheet_name="26AS_vs_Books", index=False)
 
     output.seek(0)
 
@@ -131,4 +163,4 @@ if st.button("🚀 RUN RECONCILIATION"):
     )
 
     st.subheader("Preview – 26AS vs Books")
-    st.dataframe(recon)
+    st.dataframe(final_recon, use_container_width=True)
