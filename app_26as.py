@@ -5,7 +5,7 @@ from io import BytesIO
 
 st.set_page_config(page_title="26AS Professional Reconciliation", layout="wide")
 
-# ---------------- SKY BLUE UPLOADER + FULL READABLE UI ----------------
+# ---------------- GOOGLE-LIKE PROFESSIONAL UI ----------------
 st.markdown("""
 <style>
 
@@ -23,13 +23,14 @@ st.markdown("""
 /* HEADER */
 .header-box {
     background: linear-gradient(90deg,#f8fafc,#eef2ff);
-    padding:30px;
-    border-radius:16px;
-    margin-bottom:22px;
+    padding:34px;
+    border-radius:18px;
+    margin-bottom:24px;
     border:1px solid #c7d2fe;
+    box-shadow:0 10px 25px rgba(0,0,0,0.06);
 }
 
-.header-title {color:#1e3a8a; font-size:36px; font-weight:900;}
+.header-title {color:#1e3a8a; font-size:38px; font-weight:900;}
 .header-sub {color:#0f172a; font-size:20px; font-weight:600;}
 .krishna {font-size:28px;}
 .shloka {color:#065f46; font-style:italic; font-size:16px; margin-top:8px;}
@@ -37,52 +38,68 @@ st.markdown("""
 /* ZONE */
 .zone {
     background:#ffffff;
-    padding:16px;
-    border-radius:12px;
+    padding:18px;
+    border-radius:14px;
     border:1px solid #e5e7eb;
-    box-shadow:0 4px 10px rgba(0,0,0,0.05);
-    margin-bottom:16px;
+    box-shadow:0 6px 16px rgba(0,0,0,0.06);
+    margin-bottom:18px;
 }
 
-/* 🚀 FILE UPLOADER FULL FIX */
+/* 🌤 FILE UPLOADER – SKY BLUE CARD */
 [data-testid="stFileUploader"] {
     background: linear-gradient(135deg,#e0f2fe,#bae6fd) !important;
-    border-radius:16px !important;
+    border-radius:18px !important;
     padding:22px !important;
     border:2px dashed #0284c7 !important;
+    box-shadow:0 8px 22px rgba(2,132,199,0.25);
 }
 
-[data-testid="stFileUploader"] section {
-    background: transparent !important;
-}
-
+/* Uploader text */
 [data-testid="stFileUploader"] * {
     color:#020617 !important;
     font-weight:600 !important;
 }
 
-[data-testid="stFileUploader"] svg {
-    fill:#020617 !important;
+/* 🌈 GOOGLE STYLE "BROWSE FILES" BUTTON */
+[data-testid="stFileUploader"] button {
+    background: linear-gradient(90deg,#2563eb,#06b6d4) !important;
+    color:white !important;
+    border-radius:12px !important;
+    padding:8px 18px !important;
+    font-weight:700 !important;
+    border:none !important;
+    box-shadow:0 6px 14px rgba(37,99,235,0.4);
 }
 
-/* BUTTONS */
+[data-testid="stFileUploader"] button:hover {
+    background: linear-gradient(90deg,#1d4ed8,#0891b2) !important;
+    transform:scale(1.04);
+}
+
+/* Main buttons */
 .stButton button, .stDownloadButton button {
     background: linear-gradient(90deg,#2563eb,#06b6d4);
     color:white !important;
-    border-radius:10px;
-    padding:10px 22px;
-    font-weight:700;
+    border-radius:12px;
+    padding:12px 26px;
+    font-weight:800;
     border:none;
+    box-shadow:0 8px 22px rgba(37,99,235,0.35);
 }
 
-/* TABLE */
+.stButton button:hover, .stDownloadButton button:hover {
+    transform:scale(1.05);
+}
+
+/* Table */
 [data-testid="stDataFrame"] {
     background:white;
-    border-radius:10px;
+    border-radius:12px;
     border:1px solid #e5e7eb;
+    box-shadow:0 6px 18px rgba(0,0,0,0.06);
 }
 
-/* FORCE TEXT DARK */
+/* Force dark text */
 h1,h2,h3,h4,h5,h6,p,span,div,label {
     color:#000000 !important;
 }
