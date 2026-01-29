@@ -5,7 +5,7 @@ from io import BytesIO
 
 st.set_page_config(page_title="26AS Professional Reconciliation", layout="wide")
 
-# ---------------- READABLE UI WITH SKY-BLUE UPLOAD BOXES ----------------
+# ---------------- SKY BLUE UPLOADER + FULL READABLE UI ----------------
 st.markdown("""
 <style>
 
@@ -29,30 +29,12 @@ st.markdown("""
     border:1px solid #c7d2fe;
 }
 
-.header-title {
-    color:#1e3a8a;
-    font-size:36px;
-    font-weight:900;
-}
+.header-title {color:#1e3a8a; font-size:36px; font-weight:900;}
+.header-sub {color:#0f172a; font-size:20px; font-weight:600;}
+.krishna {font-size:28px;}
+.shloka {color:#065f46; font-style:italic; font-size:16px; margin-top:8px;}
 
-.header-sub {
-    color:#0f172a;
-    font-size:20px;
-    font-weight:600;
-}
-
-.krishna {
-    font-size:28px;
-}
-
-.shloka {
-    color:#065f46;
-    font-style:italic;
-    font-size:16px;
-    margin-top:8px;
-}
-
-/* ZONES */
+/* ZONE */
 .zone {
     background:#ffffff;
     padding:16px;
@@ -62,21 +44,28 @@ st.markdown("""
     margin-bottom:16px;
 }
 
-/* FILE UPLOADER – SKY BLUE */
+/* 🚀 FILE UPLOADER FULL FIX */
 [data-testid="stFileUploader"] {
     background: linear-gradient(135deg,#e0f2fe,#bae6fd) !important;
-    border-radius:14px !important;
-    padding:20px !important;
+    border-radius:16px !important;
+    padding:22px !important;
     border:2px dashed #0284c7 !important;
 }
 
-/* All text inside uploader */
-[data-testid="stFileUploader"] * {
-    color:#020617 !important;
-    font-weight:600;
+[data-testid="stFileUploader"] section {
+    background: transparent !important;
 }
 
-/* Buttons */
+[data-testid="stFileUploader"] * {
+    color:#020617 !important;
+    font-weight:600 !important;
+}
+
+[data-testid="stFileUploader"] svg {
+    fill:#020617 !important;
+}
+
+/* BUTTONS */
 .stButton button, .stDownloadButton button {
     background: linear-gradient(90deg,#2563eb,#06b6d4);
     color:white !important;
@@ -86,18 +75,14 @@ st.markdown("""
     border:none;
 }
 
-.stButton button:hover, .stDownloadButton button:hover {
-    background: linear-gradient(90deg,#1d4ed8,#0891b2);
-}
-
-/* Table */
+/* TABLE */
 [data-testid="stDataFrame"] {
     background:white;
     border-radius:10px;
     border:1px solid #e5e7eb;
 }
 
-/* Force dark text everywhere */
+/* FORCE TEXT DARK */
 h1,h2,h3,h4,h5,h6,p,span,div,label {
     color:#000000 !important;
 }
@@ -121,20 +106,6 @@ st.markdown("""
 
 st.markdown('<div class="zone">📄 Upload original TRACES Form 26AS (.txt) and Books Excel</div>', unsafe_allow_html=True)
 
-# ---------------- SAMPLE TEMPLATE ----------------
-sample_books = pd.DataFrame({
-    "Party Name": ["ABC Pvt Ltd"],
-    "TAN": ["HYDA00000A"],
-    "Books Amount": [100000],
-    "Books TDS": [10000]
-})
-
-buf = BytesIO()
-sample_books.to_excel(buf, index=False)
-buf.seek(0)
-
-st.download_button("⬇ Download Sample Books Excel Template", buf, "Sample_Books_Template.xlsx")
-
 # ---------------- FILE UPLOAD ----------------
 txt_file = st.file_uploader("Upload TRACES 26AS TEXT file", type=["txt"])
 books_file = st.file_uploader("Upload Books Excel", type=["xlsx"])
@@ -152,17 +123,14 @@ def extract_26as_summary_and_section(file):
     for line in lines:
         parts = [p.strip() for p in line.split("^") if p.strip()]
 
-        # Track TAN
         for p in parts:
             if re.fullmatch(r"[A-Z]{4}[0-9]{5}[A-Z]", p):
                 current_tan = p
 
-        # Capture Section from transaction blocks
         sec = next((p for p in parts if re.fullmatch(r"\d+[A-Z]+", p)), None)
         if current_tan and sec and current_tan not in section_map:
             section_map[current_tan] = sec
 
-        # Detect PART-I
         if "PART-I - Details of Tax Deducted at Source" in line:
             in_part1 = True
             continue
@@ -170,7 +138,6 @@ def extract_26as_summary_and_section(file):
         if in_part1 and line.startswith("^PART-"):
             break
 
-        # Read PART-I summary rows
         if in_part1 and len(parts) >= 6 and re.fullmatch(r"\d+", parts[0]):
             if re.fullmatch(r"[A-Z]{4}[0-9]{5}[A-Z]", parts[2]):
                 try:
@@ -200,7 +167,7 @@ if st.button("🚀 RUN RECONCILIATION"):
     structured_26as = extract_26as_summary_and_section(txt_file)
 
     if structured_26as.empty:
-        st.error("No valid PART-I summary detected. Please upload original TRACES file.")
+        st.error("No valid PART-I summary detected.")
         st.stop()
 
     books = pd.read_excel(books_file)
@@ -210,17 +177,10 @@ if st.button("🚀 RUN RECONCILIATION"):
     recon["Difference Amount"] = recon["Total Amount Paid / Credited"] - recon["Books Amount"]
     recon["Difference TDS"] = recon["Total TDS Deposited"] - recon["Books TDS"]
 
-    def status(r):
-        if r["Books Amount"] == 0 and r["Total Amount Paid / Credited"] > 0:
-            return "Not in books"
-        elif abs(r["Difference TDS"]) < 1:
-            return "Matched"
-        elif r["Difference TDS"] > 0:
-            return "Under-recorded"
-        else:
-            return "Excess in books"
-
-    recon["Status"] = recon.apply(status, axis=1)
+    recon["Status"] = recon.apply(
+        lambda r: "Matched" if abs(r["Difference TDS"]) < 1 else
+        ("Not in books" if r["Books Amount"] == 0 else
+         "Under-recorded" if r["Difference TDS"] > 0 else "Excess in books"), axis=1)
 
     final_recon = recon[[
         "Section","Name of Deductor","TAN of Deductor",
@@ -228,7 +188,6 @@ if st.button("🚀 RUN RECONCILIATION"):
         "Total TDS Deposited","Books TDS","Difference TDS","Status"
     ]]
 
-    # ---------- EXPORT ----------
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         structured_26as.to_excel(writer, sheet_name="26AS_Party_Wise", index=False)
