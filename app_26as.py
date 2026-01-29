@@ -5,7 +5,7 @@ from io import BytesIO
 
 st.set_page_config(page_title="26AS Professional Reconciliation", layout="wide")
 
-# ---------------- CLEAN WHITE PROFESSIONAL UI ----------------
+# ---------------- CLEAN READABLE WHITE UI ----------------
 st.markdown("""
 <style>
 
@@ -22,16 +22,35 @@ st.markdown("""
 
 /* HEADER */
 .header-box {
-    background:#f1f5f9;
-    padding:28px;
-    border-radius:14px;
+    background: linear-gradient(90deg,#f8fafc,#eef2ff);
+    padding:30px;
+    border-radius:16px;
     margin-bottom:22px;
-    border-left:8px solid #2563eb;
+    border:1px solid #c7d2fe;
 }
 
-.header-box h1 {color:#0f172a !important;}
-.header-box h3 {color:#1e3a8a !important;}
-.header-box p {color:#000000 !important;}
+.header-title {
+    color:#1e3a8a;
+    font-size:36px;
+    font-weight:900;
+}
+
+.header-sub {
+    color:#0f172a;
+    font-size:20px;
+    font-weight:600;
+}
+
+.krishna {
+    font-size:28px;
+}
+
+.shloka {
+    color:#065f46;
+    font-style:italic;
+    font-size:16px;
+    margin-top:8px;
+}
 
 /* ZONES */
 .zone {
@@ -39,7 +58,7 @@ st.markdown("""
     padding:16px;
     border-radius:12px;
     border:1px solid #e5e7eb;
-    box-shadow:0 4px 12px rgba(0,0,0,0.05);
+    box-shadow:0 4px 10px rgba(0,0,0,0.05);
     margin-bottom:16px;
 }
 
@@ -53,16 +72,16 @@ st.markdown("""
 
 /* BUTTONS */
 .stButton button, .stDownloadButton button {
-    background:#2563eb;
+    background: linear-gradient(90deg,#2563eb,#06b6d4);
     color:white;
-    border-radius:8px;
+    border-radius:10px;
     padding:10px 22px;
     font-weight:700;
     border:none;
 }
 
 .stButton button:hover, .stDownloadButton button:hover {
-    background:#1e40af;
+    background: linear-gradient(90deg,#1d4ed8,#0891b2);
 }
 
 /* TABLE */
@@ -72,7 +91,7 @@ st.markdown("""
     border:1px solid #e5e7eb;
 }
 
-/* FORCE ALL TEXT BLACK */
+/* FORCE ALL TEXT DARK */
 h1,h2,h3,h4,h5,h6,p,span,div,label {
     color:#000000 !important;
 }
@@ -83,13 +102,16 @@ h1,h2,h3,h4,h5,h6,p,span,div,label {
 # ---------------- HEADER ----------------
 st.markdown("""
 <div class="header-box">
-    <h1>26AS PROFESSIONAL RECONCILIATION TOOL</h1>
-    <h3>Exact TRACES Matching Engine</h3>
-    <p>Developed by Abhishek Jakkula</p>
+    <div class="header-title">26AS PROFESSIONAL RECONCILIATION TOOL</div>
+    <div class="header-sub">Exact TRACES Matching Engine</div>
+    <div class="krishna">🦚 श्री कृष्णाय नमः 🙏</div>
+    <div class="shloka">कर्मण्येवाधिकारस्ते मा फलेषु कदाचन ।<br>
+    मा कर्मफलहेतुर्भूर्मा ते सङ्गोऽस्त्वकर्मणि ॥ (Bhagavad Gita 2.47)</div>
+    <p style="margin-top:8px;">Developed by Abhishek Jakkula</p>
 </div>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="zone">📄 Upload original TRACES 26AS (.txt) and Books Excel</div>', unsafe_allow_html=True)
+st.markdown('<div class="zone">📄 Upload original TRACES Form 26AS (.txt) and Books Excel</div>', unsafe_allow_html=True)
 
 # ---------------- SAMPLE TEMPLATE ----------------
 sample_books = pd.DataFrame({
@@ -103,7 +125,7 @@ buf = BytesIO()
 sample_books.to_excel(buf, index=False)
 buf.seek(0)
 
-st.download_button("⬇ Download Sample Books Excel", buf, "Sample_Books_Template.xlsx")
+st.download_button("⬇ Download Sample Books Excel Template", buf, "Sample_Books_Template.xlsx")
 
 # ---------------- FILE UPLOAD ----------------
 txt_file = st.file_uploader("Upload TRACES 26AS TEXT file", type=["txt"])
@@ -122,17 +144,17 @@ def extract_26as_summary_and_section(file):
     for line in lines:
         parts = [p.strip() for p in line.split("^") if p.strip()]
 
-        # ---------- TAN TRACKING ----------
+        # Track TAN
         for p in parts:
             if re.fullmatch(r"[A-Z]{4}[0-9]{5}[A-Z]", p):
                 current_tan = p
 
-        # ---------- SECTION FROM TRANSACTION TABLE ----------
+        # Capture Section from transaction blocks
         sec = next((p for p in parts if re.fullmatch(r"\d+[A-Z]+", p)), None)
         if current_tan and sec and current_tan not in section_map:
             section_map[current_tan] = sec
 
-        # ---------- PART-I SUMMARY ----------
+        # Detect PART-I
         if "PART-I - Details of Tax Deducted at Source" in line:
             in_part1 = True
             continue
@@ -140,6 +162,7 @@ def extract_26as_summary_and_section(file):
         if in_part1 and line.startswith("^PART-"):
             break
 
+        # Read PART-I summary rows
         if in_part1 and len(parts) >= 6 and re.fullmatch(r"\d+", parts[0]):
             if re.fullmatch(r"[A-Z]{4}[0-9]{5}[A-Z]", parts[2]):
                 try:
@@ -169,7 +192,7 @@ if st.button("🚀 RUN RECONCILIATION"):
     structured_26as = extract_26as_summary_and_section(txt_file)
 
     if structured_26as.empty:
-        st.error("No valid PART-I summary detected.")
+        st.error("No valid PART-I summary detected. Please upload original TRACES file.")
         st.stop()
 
     books = pd.read_excel(books_file)
@@ -206,7 +229,7 @@ if st.button("🚀 RUN RECONCILIATION"):
 
     output.seek(0)
 
-    st.success("✅ Exact 26AS reconciliation completed successfully")
+    st.success("✅ Reconciliation completed successfully with Lord Krishna’s blessings 🙏")
 
     st.download_button("📥 Download Final Reconciliation Excel", output, "26AS_Reconciliation.xlsx")
 
