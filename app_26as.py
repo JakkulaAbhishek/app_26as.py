@@ -119,7 +119,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------- SAMPLE TEMPLATES ----------------
-st.markdown('<div class="zone">📄 Step 1: Upload original TRACES 26AS (.txt) and Books Excel</div>', unsafe_allow_html=True)
+st.markdown('<div class="zone">📄 Step 1: Upload original TRACES Form 26AS (.txt) and Books Excel</div>', unsafe_allow_html=True)
 
 sample_books = pd.DataFrame({"Party Name": ["ABC Pvt Ltd", "XYZ Corp"], "TAN": ["HYDA00000A", ""], "Books Amount": [100000, 50000], "Books TDS": [10000, 5000]})
 books_buf = io.BytesIO()
@@ -144,20 +144,24 @@ with col_txt:
 with col_exc:
     books_file = st.file_uploader("Upload Books Excel", type=["xlsx", "xls"], on_change=reset_engine)
 
-# Smart FY/AY Extraction
+# Smart FY/AY Extraction Update
 extracted_pan = "Unknown"
 extracted_ay = "Unknown"
 extracted_fy = "Unknown"
 
 if txt_file:
     raw_text = txt_file.getvalue().decode("utf-8", errors="ignore")
-    pan_match = re.search(r'\^([A-Z]{5}\d{4}[A-Z])\^', raw_text)
-    ay_match = re.search(r'Assessment Year\^(\d{4}-\d{2})', raw_text, re.IGNORECASE)
-    fy_match = re.search(r'Financial Year\^(\d{4}-\d{2})', raw_text, re.IGNORECASE)
+    # Captures Date ^ PAN ^ Status ^ FY ^ AY structure
+    header_match = re.search(r'\d{2}-\d{2}-\d{4}\^([A-Z]{5}\d{4}[A-Z])\^[^\^]*\^(\d{4}-\d{4})\^(\d{4}-\d{4})\^', raw_text)
     
-    if pan_match: extracted_pan = pan_match.group(1)
-    if ay_match: extracted_ay = ay_match.group(1)
-    if fy_match: extracted_fy = fy_match.group(1)
+    if header_match:
+        extracted_pan = header_match.group(1)
+        extracted_fy = header_match.group(2)
+        extracted_ay = header_match.group(3)
+    else:
+        # Fallback just in case
+        pan_match = re.search(r'\^([A-Z]{5}\d{4}[A-Z])\^', raw_text)
+        if pan_match: extracted_pan = pan_match.group(1)
     
     st.markdown(f"""
     <div class="alert-box-green" style="text-align:center;">
@@ -395,7 +399,8 @@ if st.session_state.run_engine:
                 if row['Books TDS'] > 0:
                     party = str(row['Deductor / Party Name'])
                     subject = urllib.parse.quote(f"URGENT: Missing TDS Reflection in 26AS - {party}")
-                    body = urllib.parse.quote(f"Dear {party} Team,\n\nWe noticed that TDS amounting to Rs. {row['Books TDS']:,.2f} recorded in our books for Financial Year {extracted_fy} is NOT reflecting in our Form 26AS.\n\nPlease file your TDS returns or correct the PAN mapping immediately to ensure we can claim our credit.\n\nRegards,\nFinance Team")
+                    fy_text = f"Financial Year {extracted_fy}" if extracted_fy != "Unknown" else "the current Financial Year"
+                    body = urllib.parse.quote(f"Dear {party} Team,\n\nWe noticed that TDS amounting to Rs. {row['Books TDS']:,.2f} recorded in our books for {fy_text} is NOT reflecting in our Form 26AS.\n\nPlease file your TDS returns or correct the PAN mapping immediately to ensure we can claim our credit.\n\nRegards,\nFinance Team")
                     st.markdown(f"<a href='mailto:?subject={subject}&body={body}' class='email-btn'>Draft Email: {party} (₹{row['Books TDS']:,.2f})</a>", unsafe_allow_html=True)
 
     # --- Excel Export ---
@@ -411,8 +416,8 @@ if st.session_state.run_engine:
         dash.hide_gridlines(2)
         
         fy_title = f"(FY: {extracted_fy})" if extracted_fy != "Unknown" else ""
-        dash.merge_range("A1:K2", f"26AS ENTERPRISE RECON - EXECUTIVE SUMMARY {fy_title}", brand_format)
-        dash.merge_range("A3:K3", "Developed by ABHISHEK JAKKULA | jakkulaabhishek5@gmail.com", dev_format)
+        dash.merge_range("A1:M2", f"26AS ENTERPRISE RECON - EXECUTIVE SUMMARY {fy_title}", brand_format)
+        dash.merge_range("A3:M3", "Developed by ABHISHEK JAKKULA | jakkulaabhishek5@gmail.com", dev_format)
 
         dash.write_row("B5", ["Match Status", "Record Count", "TDS Impact (26AS)", "TDS Impact (Books)"], fmt_dark_blue_white)
         dash.set_column('B:B', 25); dash.set_column('C:E', 18)
@@ -425,18 +430,20 @@ if st.session_state.run_engine:
             dash.write_formula(row, 3, f'=SUMIF(Reconciliation!$B$3:$B${max_rows}, "{status}", Reconciliation!$H$3:$H${max_rows})')
             dash.write_formula(row, 4, f'=SUMIF(Reconciliation!$B$3:$B${max_rows}, "{status}", Reconciliation!$I$3:$I${max_rows})')
 
-        # Filtered Top 10 lists
+        # Filtered Top 10 lists & Enumerate index fix applied here
         top_26as = final_recon[final_recon["Total TDS Deposited"] > 0].nlargest(10, "Total TDS Deposited")
         top_books = final_recon[final_recon["Books TDS"] > 0].nlargest(10, "Books TDS")
 
         dash.write("G5", "Top 10 Suppliers (26AS)", fmt_dark_blue_white)
         dash.write_row("G6", ["Deductor / Party Name", "Total Amount (26AS)", "Total TDS (26AS)"], fmt_dark_blue_white)
-        for r_idx, row in top_26as.iterrows(): dash.write_row(r_idx + 6, 6, [row["Deductor / Party Name"], row["Total Amount Paid / Credited"], row["Total TDS Deposited"]])
+        for i, (_, row) in enumerate(top_26as.iterrows()): 
+            dash.write_row(i + 6, 6, [row["Deductor / Party Name"], row["Total Amount Paid / Credited"], row["Total TDS Deposited"]])
         dash.set_column('G:G', 35); dash.set_column('H:I', 18)
 
         dash.write("K5", "Top 10 Suppliers (Books)", fmt_dark_blue_white)
         dash.write_row("K6", ["Deductor / Party Name", "Books Amount", "Books TDS"], fmt_dark_blue_white)
-        for r_idx, row in top_books.iterrows(): dash.write_row(r_idx + 6, 10, [row["Deductor / Party Name"], row["Books Amount"], row["Books TDS"]])
+        for i, (_, row) in enumerate(top_books.iterrows()): 
+            dash.write_row(i + 6, 10, [row["Deductor / Party Name"], row["Books Amount"], row["Books TDS"]])
         dash.set_column('K:K', 35); dash.set_column('L:M', 18)
 
         pie_chart = workbook.add_chart({'type': 'pie'})
