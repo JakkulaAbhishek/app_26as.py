@@ -67,10 +67,17 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# ---------------- STATE MANAGEMENT ----------------
+if 'run_engine' not in st.session_state:
+    st.session_state.run_engine = False
+
+def reset_engine():
+    st.session_state.run_engine = False
+
 # ---------------- SIDEBAR ----------------
 with st.sidebar:
     st.markdown("### ⚙️ Engine Settings")
-    tolerance = st.number_input("Mismatch Tolerance (₹)", min_value=0, value=10, step=1)
+    tolerance = st.number_input("Mismatch Tolerance (₹)", min_value=0, value=10, step=1, on_change=reset_engine)
     max_rows = st.number_input("Max Rows for Excel Formulas", min_value=1000, value=15000, step=1000)
 
 # ---------------- HEADER ----------------
@@ -109,11 +116,20 @@ st.markdown("<br>", unsafe_allow_html=True)
 # ---------------- FILE UPLOAD ----------------
 col_txt, col_exc = st.columns(2)
 with col_txt:
-    txt_file = st.file_uploader("Upload TRACES 26AS TEXT file", type=["txt"])
+    txt_file = st.file_uploader("Upload TRACES 26AS TEXT file", type=["txt"], on_change=reset_engine)
 with col_exc:
-    books_file = st.file_uploader("Upload Books Excel", type=["xlsx", "xls"])
+    books_file = st.file_uploader("Upload Books Excel", type=["xlsx", "xls"], on_change=reset_engine)
 
 st.markdown("<br>", unsafe_allow_html=True)
+
+# ---------------- BUTTON LOGIC ----------------
+col_b1, col_b2, col_b3 = st.columns([1, 2, 1])
+with col_b2:
+    if st.button("🚀 RUN RECONCILIATION ENGINE", use_container_width=True):
+        if not txt_file or not books_file:
+            st.warning("⚠️ Please upload both files to proceed.")
+        else:
+            st.session_state.run_engine = True
 
 # ---------------- EXACT SUMMARY + SECTION EXTRACTOR ----------------
 @st.cache_data
@@ -240,9 +256,8 @@ def process_data(txt_bytes, books_bytes):
     return recon, structured_26as, books
 
 # ---------------- MAIN APPLICATION LOGIC ----------------
-if txt_file and books_file:
+if st.session_state.run_engine:
     
-    # 1. Process Core Data
     with st.spinner("Running High-Speed RapidFuzz Engine..."):
         raw_recon, structured_26as, books = process_data(txt_file.getvalue(), books_file.getvalue())
 
@@ -257,6 +272,7 @@ if txt_file and books_file:
     unmatched_bk_names = recon[recon['Match Type'] == 'Missing in 26AS']['Party Name'].dropna().unique().tolist()
 
     if not unmatched_26.empty and unmatched_bk_names:
+        st.markdown("---")
         st.markdown("### 🤝 Interactive Manual Match Editor")
         st.info("Force-match unrecognized companies. Select the correct Books Party from the dropdown in the table below.")
         
@@ -343,7 +359,6 @@ if txt_file and books_file:
     # --- Section Analytics ---
     st.markdown("### 📑 Section-Wise TDS Discrepancies")
     section_summary = recon.groupby('Section')[['Total TDS Deposited', 'Books TDS']].sum().reset_index()
-    # Remove blank sections (mostly missing in 26AS)
     section_summary = section_summary[section_summary['Section'] != ""]
     fig_sec = px.bar(section_summary, x='Section', y=['Total TDS Deposited', 'Books TDS'], barmode='group', title="TDS Claimed vs Reflected by Section")
     fig_sec.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font=dict(color="#f8fafc", family="Poppins"))
