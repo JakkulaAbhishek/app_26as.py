@@ -8,99 +8,89 @@ import plotly.express as px
 
 st.set_page_config(page_title="26AS Professional Reconciliation", layout="wide")
 
-# ---------------- GOOGLE-LIKE PROFESSIONAL UI ----------------
+# ---------------- ULTRA STYLISH CSS ----------------
 st.markdown("""
 <style>
-.stApp {
-    background:#ffffff;
-    font-family: 'Segoe UI', sans-serif;
-    color:#000000;
-}
-.block-container {
-    background:#ffffff;
-    padding:2.2rem;
-}
-/* HEADER */
-.header-box {
-    background: linear-gradient(90deg,#f8fafc,#eef2ff);
-    padding:34px;
-    border-radius:18px;
-    margin-bottom:24px;
-    border:1px solid #c7d2fe;
-    box-shadow:0 10px 25px rgba(0,0,0,0.06);
-}
-.header-title {color:#1e3a8a; font-size:38px; font-weight:900;}
-.header-sub {color:#0f172a; font-size:20px; font-weight:600;}
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;800&display=swap');
+    
+    html, body, [class*="css"] { font-family: 'Poppins', sans-serif; }
+    
+    /* Global App Background - Deep Modern Slate */
+    .stApp { background: #0f172a; color: #f8fafc; }
 
-/* ZONE */
-.zone {
-    background:#ffffff;
-    padding:18px;
-    border-radius:14px;
-    border:1px solid #e5e7eb;
-    box-shadow:0 6px 16px rgba(0,0,0,0.06);
-    margin-bottom:18px;
-}
-/* FILE UPLOADER */
-[data-testid="stFileUploader"] {
-    background: linear-gradient(135deg,#e0f2fe,#bae6fd) !important;
-    border-radius:18px !important;
-    padding:22px !important;
-    border:2px dashed #0284c7 !important;
-    box-shadow:0 8px 22px rgba(2,132,199,0.25);
-}
-[data-testid="stFileUploader"] * {
-    color:darkred !important;
-    font-weight:600 !important;
-}
-[data-testid="stFileUploader"] button {
-    background: linear-gradient(90deg,#2563eb,#06b6d4) !important;
-    color:white !important;
-    border-radius:12px !important;
-    padding:8px 18px !important;
-    font-weight:700 !important;
-    border:none !important;
-    box-shadow:0 6px 14px rgba(37,99,235,0.4);
-}
-[data-testid="stFileUploader"] button:hover {
-    background: linear-gradient(90deg,#1d4ed8,#0891b2) !important;
-    transform:scale(1.04);
-}
-/* Main buttons */
-.stButton button, .stDownloadButton button {
-    background: linear-gradient(90deg,#2563eb,#06b6d4);
-    color:white !important;
-    border-radius:12px;
-    padding:12px 26px;
-    font-weight:800;
-    border:none;
-    box-shadow:0 8px 22px rgba(37,99,235,0.35);
-}
-.stButton button:hover, .stDownloadButton button:hover {
-    transform:scale(1.05);
-}
-/* Alert Boxes */
-.alert-box-red {
-    background-color: #fef2f2; border-left: 5px solid #ef4444; 
-    padding: 15px; border-radius: 8px; margin-bottom: 12px;
-}
-.alert-box-yellow {
-    background-color: #fffbeb; border-left: 5px solid #f59e0b; 
-    padding: 15px; border-radius: 8px; margin-bottom: 12px;
-}
+    /* Gradient Title */
+    .header-title {
+        background: linear-gradient(90deg, #38bdf8, #818cf8, #c084fc);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-weight: 800; font-size: 2.8rem; margin-bottom: 0px; line-height: 1.2;
+    }
+    
+    .header-sub { color: #94a3b8; font-size: 1.2rem; font-weight: 600; margin-top: 5px; margin-bottom: 15px; }
+    .krishna { font-size: 1.4rem; margin-top: 10px; color: #f8fafc; }
+    .shloka { color: #34d399; font-style: italic; font-size: 1rem; margin-top: 5px; opacity: 0.9; }
+    .dev-credit { color: #64748b; font-weight: 600; margin-top: 20px; font-size: 0.95rem; }
+    .dev-credit b { color: #38bdf8; }
+
+    /* Primary Button Styling */
+    .stButton>button, .stDownloadButton>button {
+        background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+        color: white !important; border: none; border-radius: 8px;
+        padding: 10px 24px; font-weight: 600; transition: all 0.3s ease; width: 100%;
+    }
+    .stButton>button:hover, .stDownloadButton>button:hover {
+        transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(139, 92, 246, 0.5);
+    }
+
+    /* Glassmorphism Metric Cards */
+    [data-testid="stMetric"] {
+        background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px); padding: 20px; border-radius: 16px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    [data-testid="stMetricValue"] { color: #38bdf8; font-weight: 800; }
+
+    /* Customizing the File Uploader */
+    [data-testid="stFileUploader"] {
+        background: rgba(30, 41, 59, 0.4) !important; border-radius: 16px !important;
+        padding: 1.5em !important; border: 1px dashed #64748b !important; transition: border 0.3s ease;
+    }
+    [data-testid="stFileUploader"]:hover { border-color: #38bdf8 !important; }
+
+    /* Alert Boxes / Analytics Zone */
+    .alert-box-red {
+        background: rgba(239, 68, 68, 0.1); border-left: 5px solid #ef4444; 
+        padding: 18px; border-radius: 8px; margin-bottom: 12px; font-size: 1.05rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+    }
+    .alert-box-yellow {
+        background: rgba(245, 158, 11, 0.1); border-left: 5px solid #f59e0b; 
+        padding: 18px; border-radius: 8px; margin-bottom: 12px; font-size: 1.05rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+    }
+    .zone {
+        background: rgba(30, 41, 59, 0.4); padding: 18px; border-radius: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.05); margin-bottom: 18px; text-align: center; color: #cbd5e1; font-weight: 600;
+    }
+    
+    /* Tables */
+    [data-testid="stDataFrame"] { background: transparent; }
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------- HEADER ----------------
 st.markdown("""
-<div class="header-box">
-    <div class="header-title">26AS PROFESSIONAL RECONCILIATION TOOL</div>
-    <div class="header-sub">26AS VS BOOKS (AI-Powered Matching)</div>
-    <p style="margin-top:8px; color:#475569; font-weight:600;">Developed by Abhishek Jakkula</p>
+<div style="text-align: center; margin-bottom: 30px;">
+    <div class="header-title">26AS Professional Reconciliation</div>
+    <div class="header-sub">AI-Powered Matching Engine: 26AS vs Books</div>
+    <div class="krishna">🦚 श्री कृष्णाय नमः 🙏</div>
+    <div class="shloka">
+        कर्मण्येवाधिकारस्ते मा फलेषु कदाचन ।<br>
+        मा कर्मफलहेतुर्भूर्मा ते सङ्गोऽस्त्वकर्मणि ॥
+    </div>
+    <div class="dev-credit">Developed by <b>Abhishek Jakkula</b></div>
 </div>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="zone">📄 Upload original TRACES Form 26AS (.txt) and Books Excel</div>', unsafe_allow_html=True)
+st.markdown('<div class="zone">📄 Step 1: Upload original TRACES Form 26AS (.txt) and Books Excel</div>', unsafe_allow_html=True)
 
 # ---------------- SAMPLE BOOKS TEMPLATE DOWNLOAD ----------------
 sample_books = pd.DataFrame({
@@ -114,18 +104,20 @@ buf = io.BytesIO()
 sample_books.to_excel(buf, index=False)
 buf.seek(0)
 
-col1, col2 = st.columns([1, 2])
-with col1:
-    st.download_button("⬇ Download Sample Books Excel", buf, "Sample_Books_Template.xlsx")
+col1, col2, col3 = st.columns([1, 2, 1])
+with col2:
+    st.download_button("⬇ Download Sample Books Excel Template", buf, "Sample_Books_Template.xlsx")
 
-st.markdown("---")
+st.markdown("<br>", unsafe_allow_html=True)
 
 # ---------------- FILE UPLOAD ----------------
 col_txt, col_exc = st.columns(2)
 with col_txt:
     txt_file = st.file_uploader("Upload TRACES 26AS TEXT file", type=["txt"])
 with col_exc:
-    books_file = st.file_uploader("Upload Books Excel", type=["xlsx"])
+    books_file = st.file_uploader("Upload Books Excel", type=["xlsx", "xls"])
+
+st.markdown("<br>", unsafe_allow_html=True)
 
 # ---------------- EXACT SUMMARY + SECTION EXTRACTOR ----------------
 @st.cache_data
@@ -174,9 +166,13 @@ def extract_26as_summary_and_section(file_bytes):
     return df
 
 # ---------------- PROCESS ----------------
-if st.button("🚀 RUN RECONCILIATION"):
+col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
+with col_btn2:
+    run_btn = st.button("🚀 RUN RECONCILIATION ENGINE")
+
+if run_btn:
     if not txt_file or not books_file:
-        st.warning("⚠️ Please upload both files.")
+        st.warning("⚠️ Please upload both files to proceed.")
         st.stop()
 
     with st.spinner("Running AI Matching Engine..."):
@@ -271,7 +267,7 @@ if st.button("🚀 RUN RECONCILIATION"):
         ]]
 
         # --- Dashboard Metrics ---
-        st.markdown("### 📊 Reconciliation Summary")
+        st.markdown("### 📊 Live Summary Dashboard")
         m1, m2, m3 = st.columns(3)
         m1.metric("Total TDS in 26AS", f"₹ {recon['Total TDS Deposited'].sum():,.2f}")
         m2.metric("Total TDS in Books", f"₹ {recon['Books TDS'].sum():,.2f}")
@@ -279,7 +275,7 @@ if st.button("🚀 RUN RECONCILIATION"):
         m3.metric("Net Variance", f"₹ {net_diff:,.2f}", delta=f"₹ {net_diff:,.2f}", delta_color="inverse")
 
         # --- High Caution / Analytics ---
-        st.markdown("### 🚨 High Caution & Action Required")
+        st.markdown("### 🚨 AI Financial Alerts")
         
         miss_in_books = recon[recon["Match Status"] == "Missing in Books"]
         if not miss_in_books.empty and miss_in_books["Total TDS Deposited"].sum() > 0:
@@ -287,8 +283,8 @@ if st.button("🚀 RUN RECONCILIATION"):
             top_missed = miss_in_books.loc[miss_in_books["Total TDS Deposited"].idxmax()]
             st.markdown(f"""
             <div class="alert-box-red">
-                <b>URGENT: Unclaimed TDS!</b> ₹ {total_missed:,.2f} is reflecting in 26AS but is completely <b>MISSING</b> in your books.<br>
-                <i>👉 Top Missing Party: <b>{top_missed['Name of Deductor']}</b> (₹ {top_missed['Total TDS Deposited']:,.2f}). Ensure you record this to claim the credit.</i>
+                <b>URGENT: Unclaimed TDS Leakage!</b> ₹ {total_missed:,.2f} is reflecting in 26AS but is completely <b>MISSING</b> in your books.<br>
+                <span style="color: #fca5a5; font-size: 0.95rem;"><i>👉 Top Missing Party: <b>{top_missed['Name of Deductor']}</b> (₹ {top_missed['Total TDS Deposited']:,.2f}).</i></span>
             </div>
             """, unsafe_allow_html=True)
 
@@ -298,8 +294,8 @@ if st.button("🚀 RUN RECONCILIATION"):
             top_excess = miss_in_26as.loc[miss_in_26as["Books TDS"].idxmax()]
             st.markdown(f"""
             <div class="alert-box-yellow">
-                <b>COMPLIANCE RISK:</b> ₹ {total_excess:,.2f} of TDS is claimed in your Books but <b>NOT in 26AS</b>.<br>
-                <i>👉 Top Unreflected Party: <b>{top_excess['Party Name']}</b> (₹ {top_excess['Books TDS']:,.2f}). Follow up immediately to ensure they file their TDS returns.</i>
+                <b>COMPLIANCE RISK:</b> ₹ {total_excess:,.2f} of TDS is claimed in your Books but <b>NOT uploaded in 26AS</b>.<br>
+                <span style="color: #fcd34d; font-size: 0.95rem;"><i>👉 Top Unreflected Party: <b>{top_excess['Party Name']}</b> (₹ {top_excess['Books TDS']:,.2f}). Follow up immediately!</i></span>
             </div>
             """, unsafe_allow_html=True)
 
@@ -310,11 +306,13 @@ if st.button("🚀 RUN RECONCILIATION"):
         with c1:
             top_26as = structured_26as.nlargest(10, "Total TDS Deposited")
             fig1 = px.pie(top_26as, names="Name of Deductor", values="Total TDS Deposited", title="Top 10 Deductors in 26AS (by TDS)", hole=0.4)
+            fig1.update_layout(paper_bgcolor="rgba(0,0,0,0)", font=dict(color="#f8fafc", family="Poppins"))
             st.plotly_chart(fig1, use_container_width=True)
             
         with c2:
             top_books = books.nlargest(10, "Books TDS")
             fig2 = px.pie(top_books, names="Party Name", values="Books TDS", title="Top 10 Parties in Books (by TDS)", hole=0.4)
+            fig2.update_layout(paper_bgcolor="rgba(0,0,0,0)", font=dict(color="#f8fafc", family="Poppins"))
             st.plotly_chart(fig2, use_container_width=True)
 
         # --- Excel Export ---
@@ -326,7 +324,7 @@ if st.button("🚀 RUN RECONCILIATION"):
 
             workbook = writer.book
             worksheet = writer.sheets["26AS_vs_Books"]
-            header_format = workbook.add_format({'bold': True, 'bg_color': '#1e3a8a', 'font_color': 'white', 'border': 1})
+            header_format = workbook.add_format({'bold': True, 'bg_color': '#1e293b', 'font_color': 'white', 'border': 1})
             
             for col_num, value in enumerate(final_recon.columns.values):
                 worksheet.write(0, col_num, value, header_format)
@@ -336,9 +334,10 @@ if st.button("🚀 RUN RECONCILIATION"):
 
         st.success("✅ Smart Reconciliation completed successfully.")
 
-        col_dl, _ = st.columns([1,2])
-        with col_dl:
-            st.download_button("📥 Download Final Reconciliation Excel", output, "26AS_Reconciliation_Pro.xlsx")
+        col_dl1, col_dl2, col_dl3 = st.columns([1,2,1])
+        with col_dl2:
+            st.download_button("⚡ Download Final Ultimate Report", output, "26AS_Reconciliation_Pro.xlsx")
 
-        st.subheader("Preview – 26AS vs Books")
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.subheader("👁️ Preview Engine Output")
         st.dataframe(final_recon.head(100), use_container_width=True)
