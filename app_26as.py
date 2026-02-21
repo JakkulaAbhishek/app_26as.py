@@ -70,15 +70,12 @@ st.markdown("""
         background: rgba(30, 41, 59, 0.4); padding: 18px; border-radius: 14px;
         border: 1px solid rgba(255, 255, 255, 0.05); margin-bottom: 18px; text-align: center; color: #cbd5e1; font-weight: 600;
     }
-    
-    /* Custom Email Button to prevent blank tabs */
     .email-btn {
         display: inline-block; background: #1e293b; color: #38bdf8 !important; border: 1px solid #38bdf8;
         padding: 8px 16px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.9rem;
-        transition: all 0.3s;
+        transition: all 0.3s; margin-top: 5px; margin-bottom: 5px;
     }
     .email-btn:hover { background: #38bdf8; color: #0f172a !important; }
-    
     [data-testid="stDataFrame"] { background: transparent; }
 </style>
 """, unsafe_allow_html=True)
@@ -147,14 +144,12 @@ with col_txt:
 with col_exc:
     books_file = st.file_uploader("Upload Books Excel", type=["xlsx", "xls"], on_change=reset_engine)
 
-# Smart FY/AY Extraction 
 extracted_pan = "Unknown"
 extracted_ay = "Unknown"
 extracted_fy = "Unknown"
 
 if txt_file:
     raw_text = txt_file.getvalue().decode("utf-8", errors="ignore")
-    # Captures Date ^ PAN ^ Status ^ FY ^ AY structure
     header_match = re.search(r'\d{2}-\d{2}-\d{4}\^([A-Z]{5}\d{4}[A-Z])\^[^\^]*\^(\d{4}-\d{4})\^(\d{4}-\d{4})\^', raw_text)
     
     if header_match:
@@ -162,7 +157,6 @@ if txt_file:
         extracted_fy = header_match.group(2)
         extracted_ay = header_match.group(3)
     else:
-        # Fallback just in case
         pan_match = re.search(r'\^([A-Z]{5}\d{4}[A-Z])\^', raw_text)
         if pan_match: extracted_pan = pan_match.group(1)
     
@@ -396,20 +390,18 @@ if st.session_state.run_engine:
         </div>
         """, unsafe_allow_html=True)
         
-        # --- NEW CUSTOM HTML EMAIL TABLE (FIXES BLANK TAB ISSUE) ---
+        # --- FIXED AI EMAIL GENERATOR TABLE ---
         st.markdown("#### ✉️ Automated AI Email Generator")
         st.info("Click 'Draft AI Email ✉️' below to instantly open your email client without opening a blank tab.")
 
         email_df = miss_in_26as[miss_in_26as["Books TDS"] > 0].copy()
 
-        html_table = '''
-        <table style="width:100%; border-collapse: collapse; text-align: left; background: rgba(30, 41, 59, 0.4); border-radius: 8px; overflow: hidden; margin-bottom: 20px;">
-            <tr style="background: rgba(56, 189, 248, 0.1); border-bottom: 1px solid rgba(255,255,255,0.1);">
-                <th style="padding: 12px 15px; color: #38bdf8;">Vendor Name</th>
-                <th style="padding: 12px 15px; color: #38bdf8;">Missing TDS (₹)</th>
-                <th style="padding: 12px 15px; color: #38bdf8;">Action</th>
-            </tr>
-        '''
+        html_table = '<table style="width:100%; border-collapse: collapse; text-align: left; background: rgba(30, 41, 59, 0.4); border-radius: 8px; overflow: hidden; margin-bottom: 20px;">'
+        html_table += '<tr style="background: rgba(56, 189, 248, 0.1); border-bottom: 1px solid rgba(255,255,255,0.1);">'
+        html_table += '<th style="padding: 12px 15px; color: #38bdf8;">Vendor Name</th>'
+        html_table += '<th style="padding: 12px 15px; color: #38bdf8;">Missing TDS (₹)</th>'
+        html_table += '<th style="padding: 12px 15px; color: #38bdf8;">Action</th>'
+        html_table += '</tr>'
         
         for idx, row in email_df.sort_values(by="Books TDS", ascending=False).iterrows():
             party = str(row['Deductor / Party Name'])
@@ -420,18 +412,15 @@ if st.session_state.run_engine:
             body = f"Dear Finance Team at {party},\n\nI hope this email finds you well.\n\nDuring our recent reconciliation, we noticed that TDS amounting to Rs. {amt} recorded in our books for {fy_text} is NOT reflecting in our Form 26AS.\n\nCould you please verify if the TDS returns for this period have been filed and if our PAN ({extracted_pan}) was quoted correctly? If there is any mismatch or if the return is pending, we kindly request you to rectify/file it at the earliest so we can claim our rightful tax credit.\n\nThank you for your prompt assistance in resolving this matter.\n\nBest Regards,\nFinance Team"
             
             body_encoded = urllib.parse.quote(body)
-            # Safe mailto link - No target="_blank"
             link = f"mailto:?subject={subject}&body={body_encoded}"
 
-            html_table += f'''
-            <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                <td style="padding: 12px 15px; color: #f8fafc;">{party}</td>
-                <td style="padding: 12px 15px; color: #f8fafc;">₹ {amt}</td>
-                <td style="padding: 12px 15px;"><a href="{link}" class="email-btn">Draft AI Email ✉️</a></td>
-            </tr>
-            '''
+            html_table += '<tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">'
+            html_table += f'<td style="padding: 12px 15px; color: #f8fafc;">{party}</td>'
+            html_table += f'<td style="padding: 12px 15px; color: #f8fafc;">₹ {amt}</td>'
+            html_table += f'<td style="padding: 12px 15px;"><a href="{link}" class="email-btn">Draft AI Email ✉️</a></td>'
+            html_table += '</tr>'
             
-        html_table += "</table>"
+        html_table += '</table>'
         st.markdown(html_table, unsafe_allow_html=True)
 
     # --- Excel Export ---
@@ -461,7 +450,6 @@ if st.session_state.run_engine:
             dash.write_formula(row, 3, f'=SUMIF(Reconciliation!$B$3:$B${max_rows}, "{status}", Reconciliation!$H$3:$H${max_rows})')
             dash.write_formula(row, 4, f'=SUMIF(Reconciliation!$B$3:$B${max_rows}, "{status}", Reconciliation!$I$3:$I${max_rows})')
 
-        # Filtered Top 10 lists & Enumerate index fix applied here
         top_26as = final_recon[final_recon["Total TDS Deposited"] > 0].nlargest(10, "Total TDS Deposited")
         top_books = final_recon[final_recon["Books TDS"] > 0].nlargest(10, "Books TDS")
 
@@ -491,7 +479,6 @@ if st.session_state.run_engine:
         pie_books.set_title({'name': 'Top 10 Parties (Books)'})
         dash.insert_chart('K18', pie_books)
 
-        # B. Reconciliation Sheet with Auto-Width
         sheet_recon = workbook.add_worksheet("Reconciliation")
         final_recon.to_excel(writer, sheet_name="Reconciliation", startrow=2, index=False, header=False)
         
@@ -502,13 +489,11 @@ if st.session_state.run_engine:
                 formula = f"=SUBTOTAL(9,{col_letter}3:{col_letter}{max_rows})"
                 sheet_recon.write_formula(0, col_num, formula, fmt_subtotal)
             
-            # Dynamic Column Auto-Width
             max_len = max(final_recon[col_name].astype(str).map(len).max(), len(str(col_name)))
             sheet_recon.set_column(col_num, col_num, min(max_len + 3, 45))
 
         sheet_recon.autofilter(1, 0, max_rows, len(final_recon.columns) - 1)
 
-        # C. Raw Data Sheets with Auto-Width
         structured_26as.to_excel(writer, sheet_name="26AS Raw", index=False)
         sheet_26_raw = writer.sheets["26AS Raw"]
         for i, col in enumerate(structured_26as.columns):
