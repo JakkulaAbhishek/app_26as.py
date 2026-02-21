@@ -77,7 +77,7 @@ with st.sidebar:
 st.markdown("""
 <div style="text-align: center; margin-bottom: 30px;">
     <div class="header-title">26AS Enterprise Reconciliation</div>
-    <div class="header-sub">RapidFuzz AI Matching | Multi-Branch | Section Analytics</div>
+    <div class="header-sub">RapidFuzz AI Matching | Section Analytics</div>
     <div class="krishna">🦚 श्री कृष्णाय नमः 🙏</div>
     <div class="shloka">
         कर्मण्येवाधिकारस्ते मा फलेषु कदाचन ।<br>
@@ -87,7 +87,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="zone">📄 Step 1: Upload original TRACES 26AS (.txt) and Books Excel (Select multiple files for Multi-Branch)</div>', unsafe_allow_html=True)
+st.markdown('<div class="zone">📄 Step 1: Upload original TRACES 26AS (.txt) and Books Excel</div>', unsafe_allow_html=True)
 
 # ---------------- SAMPLE BOOKS TEMPLATE ----------------
 sample_books = pd.DataFrame({
@@ -111,7 +111,7 @@ col_txt, col_exc = st.columns(2)
 with col_txt:
     txt_file = st.file_uploader("Upload TRACES 26AS TEXT file", type=["txt"])
 with col_exc:
-    books_files = st.file_uploader("Upload Books Excel (Multi-branch supported)", type=["xlsx", "xls"], accept_multiple_files=True)
+    books_file = st.file_uploader("Upload Books Excel", type=["xlsx", "xls"])
 
 st.markdown("<br>", unsafe_allow_html=True)
 
@@ -161,17 +161,14 @@ def extract_26as_summary_and_section(file_bytes):
 
 # ---------------- CACHED AI ENGINE ----------------
 @st.cache_data(show_spinner=False)
-def process_data(txt_bytes, books_bytes_list):
+def process_data(txt_bytes, books_bytes):
     structured_26as = extract_26as_summary_and_section(txt_bytes)
     
     if structured_26as.empty:
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
-    # Read and aggregate Multi-Branch Books
-    dfs = []
-    for f_bytes in books_bytes_list:
-        dfs.append(pd.read_excel(io.BytesIO(f_bytes)))
-    books = pd.concat(dfs, ignore_index=True)
+    # Read Single Books File
+    books = pd.read_excel(io.BytesIO(books_bytes))
 
     required_cols = ["Party Name", "TAN", "Books Amount", "Books TDS"]
     for col in required_cols:
@@ -180,7 +177,7 @@ def process_data(txt_bytes, books_bytes_list):
 
     books["TAN"] = books["TAN"].fillna("").astype(str).str.strip().str.upper()
     
-    # Aggregate duplicate parties across branches
+    # Aggregate multiple invoices for the same party in books
     numeric_cols = ["Books Amount", "Books TDS"]
     for col in numeric_cols:
         books[col] = pd.to_numeric(books[col], errors="coerce").fillna(0)
@@ -243,12 +240,11 @@ def process_data(txt_bytes, books_bytes_list):
     return recon, structured_26as, books
 
 # ---------------- MAIN APPLICATION LOGIC ----------------
-if txt_file and books_files:
+if txt_file and books_file:
     
     # 1. Process Core Data
     with st.spinner("Running High-Speed RapidFuzz Engine..."):
-        books_bytes_list = [f.getvalue() for f in books_files]
-        raw_recon, structured_26as, books = process_data(txt_file.getvalue(), books_bytes_list)
+        raw_recon, structured_26as, books = process_data(txt_file.getvalue(), books_file.getvalue())
 
     if raw_recon.empty:
         st.error("❌ No valid PART-I summary detected in the 26AS text file.")
