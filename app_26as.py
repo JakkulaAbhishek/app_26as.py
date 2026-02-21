@@ -24,7 +24,7 @@ st.markdown("""
     }
     
     .header-sub { color: #94a3b8; font-size: 1.2rem; font-weight: 600; margin-top: 5px; margin-bottom: 15px; }
-    .dev-credit { color: #64748b; font-weight: 600; margin-top: 20px; font-size: 0.95rem; }
+    .dev-credit { color: #64748b; font-weight: 600; margin-top: 10px; font-size: 0.95rem; }
     .dev-credit b { color: #38bdf8; }
 
     .stButton>button, .stDownloadButton>button {
@@ -102,58 +102,46 @@ with st.sidebar:
 st.markdown("""
 <div style="text-align: center; margin-bottom: 30px;">
     <div class="header-title">26AS Enterprise Reconciliation</div>
-    <div class="header-sub">RapidFuzz AI | ERP Column Mapper | TDS Rate Auditor</div>
+    <div class="header-sub">RapidFuzz AI | Smart Memory | TDS Rate Auditor</div>
     <div class="dev-credit">Developed by <b>Abhishek Jakkula</b></div>
 </div>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="zone">📄 Step 1: Upload original TRACES 26AS (.txt) and Raw Books Excel</div>', unsafe_allow_html=True)
+# ---------------- SAMPLE TEMPLATES ----------------
+st.markdown('<div class="zone">📄 Step 1: Upload original TRACES 26AS (.txt) and Books Excel</div>', unsafe_allow_html=True)
+
+# Books Template
+sample_books = pd.DataFrame({
+    "Party Name": ["ABC Pvt Ltd", "XYZ Corp"],
+    "TAN": ["HYDA00000A", ""],
+    "Books Amount": [100000, 50000],
+    "Books TDS": [10000, 5000]
+})
+books_buf = io.BytesIO()
+sample_books.to_excel(books_buf, index=False)
+books_buf.seek(0)
+
+# Dictionary Template
+sample_dict = pd.DataFrame({
+    "TAN of Deductor": ["HYDA00000A"],
+    "Mapped Books Party": ["ABC Pvt Ltd"]
+})
+dict_csv = sample_dict.to_csv(index=False).encode('utf-8')
+
+col_t1, col_t2 = st.columns(2)
+with col_t1:
+    st.download_button("⬇ Download Sample Books Excel", books_buf, "Sample_Books.xlsx", use_container_width=True)
+with col_t2:
+    st.download_button("⬇ Download Sample Mapping Dictionary", dict_csv, "Sample_Mapping.csv", mime="text/csv", use_container_width=True)
+
+st.markdown("<br>", unsafe_allow_html=True)
 
 # ---------------- FILE UPLOAD ----------------
 col_txt, col_exc = st.columns(2)
 with col_txt:
     txt_file = st.file_uploader("Upload TRACES 26AS TEXT file", type=["txt"], on_change=reset_engine)
 with col_exc:
-    books_file = st.file_uploader("Upload Raw Books Excel (ERP Dump)", type=["xlsx", "xls", "csv"], on_change=reset_engine)
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-# ---------------- DYNAMIC COLUMN MAPPER ----------------
-books_mapped_df = None
-
-if books_file:
-    try:
-        if books_file.name.endswith('.csv'):
-            raw_books = pd.read_csv(books_file)
-        else:
-            raw_books = pd.read_excel(books_file)
-            
-        cols = list(raw_books.columns)
-        
-        st.markdown('<div class="zone">🔀 Step 2: Map Your ERP Columns (No Template Needed)</div>', unsafe_allow_html=True)
-        
-        c1, c2, c3, c4 = st.columns(4)
-        
-        # Smart guesses for defaults
-        def guess_col(keywords):
-            for c in cols:
-                if any(k.lower() in c.lower() for k in keywords): return cols.index(c)
-            return 0
-            
-        map_party = c1.selectbox("Party / Vendor Name", cols, index=guess_col(["party", "vendor", "name", "ledger"]), on_change=reset_engine)
-        map_tan = c2.selectbox("TAN Column", cols, index=guess_col(["tan", "tax number"]), on_change=reset_engine)
-        map_amt = c3.selectbox("Taxable Amount Column", cols, index=guess_col(["amount", "taxable", "gross", "base"]), on_change=reset_engine)
-        map_tds = c4.selectbox("TDS Deducted Column", cols, index=guess_col(["tds", "tax", "deducted"]), on_change=reset_engine)
-
-        books_mapped_df = raw_books.rename(columns={
-            map_party: "Party Name",
-            map_tan: "TAN",
-            map_amt: "Books Amount",
-            map_tds: "Books TDS"
-        })
-        
-    except Exception as e:
-        st.error(f"Error reading Books file: {e}")
+    books_file = st.file_uploader("Upload Books Excel", type=["xlsx", "xls"], on_change=reset_engine)
 
 st.markdown("<br>", unsafe_allow_html=True)
 
@@ -161,8 +149,8 @@ st.markdown("<br>", unsafe_allow_html=True)
 col_b1, col_b2, col_b3 = st.columns([1, 2, 1])
 with col_b2:
     if st.button("🚀 RUN ENTERPRISE ENGINE", use_container_width=True):
-        if not txt_file or books_mapped_df is None:
-            st.warning("⚠️ Please upload and map both files to proceed.")
+        if not txt_file or not books_file:
+            st.warning("⚠️ Please upload both the 26AS and Books files to proceed.")
         else:
             st.session_state.run_engine = True
 
@@ -212,13 +200,13 @@ def extract_26as_summary_and_section(file_bytes):
 
 # ---------------- CACHED AI ENGINE ----------------
 @st.cache_data(show_spinner=False)
-def process_data(txt_bytes, books_df):
+def process_data(txt_bytes, books_bytes):
     structured_26as = extract_26as_summary_and_section(txt_bytes)
     
     if structured_26as.empty:
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
-    books = books_df.copy()
+    books = pd.read_excel(io.BytesIO(books_bytes))
 
     required_cols = ["Party Name", "TAN", "Books Amount", "Books TDS"]
     for col in required_cols:
@@ -292,7 +280,7 @@ def process_data(txt_bytes, books_df):
 if st.session_state.run_engine:
     
     with st.spinner("Running High-Speed AI Engine & Rate Auditor..."):
-        raw_recon, structured_26as, books = process_data(txt_file.getvalue(), books_mapped_df)
+        raw_recon, structured_26as, books = process_data(txt_file.getvalue(), books_file.getvalue())
 
     if raw_recon.empty:
         st.error("❌ No valid PART-I summary detected in the 26AS text file.")
@@ -492,14 +480,37 @@ if st.session_state.run_engine:
         dash.set_column('K:K', 35)
         dash.set_column('L:M', 18)
 
-        pie_chart = workbook.add_chart({'type': 'doughnut'})
+        # 1. Status Distribution Pie Chart
+        pie_chart = workbook.add_chart({'type': 'pie'})
         pie_chart.add_series({
             'name': 'Status Distribution',
             'categories': f'=Dashboard!$B$6:$B$10',
             'values': f'=Dashboard!$C$6:$C$10',
-            'data_labels': {'percentage': True}
+            'data_labels': {'percentage': True, 'show_leader_lines': True}
         })
         dash.insert_chart('B13', pie_chart)
+
+        # 2. Top 10 Deductors (26AS) Pie Chart
+        pie_26as = workbook.add_chart({'type': 'pie'})
+        pie_26as.add_series({
+            'name': 'Top 10 26AS',
+            'categories': f'=Dashboard!$G$7:$G${6 + len(top_26as)}',
+            'values': f'=Dashboard!$I$7:$I${6 + len(top_26as)}',
+            'data_labels': {'percentage': True, 'show_leader_lines': True}
+        })
+        pie_26as.set_title({'name': 'Top 10 Deductors (26AS)'})
+        dash.insert_chart('G18', pie_26as)
+
+        # 3. Top 10 Parties (Books) Pie Chart
+        pie_books = workbook.add_chart({'type': 'pie'})
+        pie_books.add_series({
+            'name': 'Top 10 Books',
+            'categories': f'=Dashboard!$K$7:$K${6 + len(top_books)}',
+            'values': f'=Dashboard!$M$7:$M${6 + len(top_books)}',
+            'data_labels': {'percentage': True, 'show_leader_lines': True}
+        })
+        pie_books.set_title({'name': 'Top 10 Parties (Books)'})
+        dash.insert_chart('K18', pie_books)
 
         # B. Reconciliation Sheet
         sheet_recon = workbook.add_worksheet("Reconciliation")
@@ -534,6 +545,6 @@ if st.session_state.run_engine:
 
     col_dl1, col_dl2, col_dl3 = st.columns(3)
     with col_dl1:
-        st.download_button("⚡ Download Final Excel Report", output, "26AS_Recon_Enterprise.xlsx")
+        st.download_button("⚡ Download Final Excel Report", output, "26AS_Recon_Enterprise.xlsx", use_container_width=True)
     with col_dl2:
-        st.download_button("💾 Save Mapping Dictionary (CSV)", csv_data, "Mapping_Dictionary.csv", help="Upload this next month to auto-match vendors!")
+        st.download_button("💾 Save Mapping Dictionary (CSV)", csv_data, "Mapping_Dictionary.csv", help="Upload this next time to auto-match vendors!", use_container_width=True)
