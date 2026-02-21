@@ -70,12 +70,6 @@ st.markdown("""
         background: rgba(30, 41, 59, 0.4); padding: 18px; border-radius: 14px;
         border: 1px solid rgba(255, 255, 255, 0.05); margin-bottom: 18px; text-align: center; color: #cbd5e1; font-weight: 600;
     }
-    .email-btn {
-        display: inline-block; background: #1e293b; color: #38bdf8 !important; border: 1px solid #38bdf8;
-        padding: 8px 16px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.9rem;
-        transition: all 0.3s; margin-top: 5px; margin-bottom: 15px;
-    }
-    .email-btn:hover { background: #38bdf8; color: #0f172a !important; }
     [data-testid="stDataFrame"] { background: transparent; }
 </style>
 """, unsafe_allow_html=True)
@@ -361,7 +355,7 @@ if st.session_state.run_engine:
     st.plotly_chart(fig_sec, use_container_width=True)
 
     # --- Compliance Alerts & Email Generator ---
-    st.markdown("### 🚨 Compliance & Anomaly Alerts")
+    st.markdown("### 🚨 Compliance Alerts & Automated Communications")
     
     anomalies = recon[(recon['Effective Rate 26AS (%)'] > 0) & (~recon['Effective Rate 26AS (%)'].isin([1.0, 2.0, 5.0, 10.0, 20.0]))]
     if not anomalies.empty:
@@ -393,15 +387,36 @@ if st.session_state.run_engine:
         </div>
         """, unsafe_allow_html=True)
         
-        with st.expander("✉️ Generate Follow-up Emails for Missing 26AS Parties"):
-            st.info("Click a button below to automatically draft a follow-up email in your default email client.")
-            for idx, row in miss_in_26as.nlargest(10, 'Books TDS').iterrows():
-                if row['Books TDS'] > 0:
-                    party = str(row['Deductor / Party Name'])
-                    subject = urllib.parse.quote(f"URGENT: Missing TDS Reflection in 26AS - {party}")
-                    fy_text = f"Financial Year {extracted_fy}" if extracted_fy != "Unknown" else "the current Financial Year"
-                    body = urllib.parse.quote(f"Dear {party} Team,\n\nWe noticed that TDS amounting to Rs. {row['Books TDS']:,.2f} recorded in our books for {fy_text} is NOT reflecting in our Form 26AS.\n\nPlease file your TDS returns or correct the PAN mapping immediately to ensure we can claim our credit.\n\nRegards,\nFinance Team")
-                    st.markdown(f"<a href='mailto:?subject={subject}&body={body}' class='email-btn'>Draft Email: {party} (₹{row['Books TDS']:,.2f})</a>", unsafe_allow_html=True)
+        # --- NEW AI EMAIL GENERATOR TABLE ---
+        st.markdown("#### ✉️ Automated AI Email Generator")
+        st.info("Click the 'Draft AI Email ✉️' link below to instantly open your email client with a pre-written message for the vendor.")
+
+        email_df = miss_in_26as[miss_in_26as["Books TDS"] > 0].copy()
+
+        def create_mailto(row):
+            party = str(row['Deductor / Party Name'])
+            amt = f"{row['Books TDS']:,.2f}"
+            subject = urllib.parse.quote(f"Action Required: Missing TDS Reflection in 26AS - {party}")
+            fy_text = f"Financial Year {extracted_fy}" if extracted_fy != "Unknown" else "the current Financial Year"
+            
+            body = f"Dear Finance Team at {party},\n\nI hope this email finds you well.\n\nDuring our recent reconciliation, we noticed that TDS amounting to Rs. {amt} recorded in our books for {fy_text} is NOT reflecting in our Form 26AS.\n\nCould you please verify if the TDS returns for this period have been filed and if our PAN ({extracted_pan}) was quoted correctly? If there is any mismatch or if the return is pending, we kindly request you to rectify/file it at the earliest so we can claim our rightful tax credit.\n\nThank you for your prompt assistance in resolving this matter.\n\nBest Regards,\nFinance Team"
+            
+            body_encoded = urllib.parse.quote(body)
+            return f"mailto:?subject={subject}&body={body_encoded}"
+
+        email_df["Send Follow-up"] = email_df.apply(create_mailto, axis=1)
+
+        # Display Interactive Table
+        st.dataframe(
+            email_df[["Deductor / Party Name", "Books TDS", "Send Follow-up"]].sort_values(by="Books TDS", ascending=False),
+            column_config={
+                "Deductor / Party Name": st.column_config.TextColumn("Vendor Name"),
+                "Books TDS": st.column_config.NumberColumn("Missing TDS (₹)", format="₹ %.2f"),
+                "Send Follow-up": st.column_config.LinkColumn("Action", display_text="Draft AI Email ✉️")
+            },
+            hide_index=True,
+            use_container_width=True
+        )
 
     # --- Excel Export ---
     output = io.BytesIO()
@@ -430,7 +445,6 @@ if st.session_state.run_engine:
             dash.write_formula(row, 3, f'=SUMIF(Reconciliation!$B$3:$B${max_rows}, "{status}", Reconciliation!$H$3:$H${max_rows})')
             dash.write_formula(row, 4, f'=SUMIF(Reconciliation!$B$3:$B${max_rows}, "{status}", Reconciliation!$I$3:$I${max_rows})')
 
-        # Filtered Top 10 lists & Enumerate index fix applied here
         top_26as = final_recon[final_recon["Total TDS Deposited"] > 0].nlargest(10, "Total TDS Deposited")
         top_books = final_recon[final_recon["Books TDS"] > 0].nlargest(10, "Books TDS")
 
