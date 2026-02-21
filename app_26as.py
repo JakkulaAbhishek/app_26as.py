@@ -3,8 +3,8 @@ import pandas as pd
 import numpy as np
 import re
 import io
-import difflib
 import plotly.express as px
+from rapidfuzz import process, fuzz
 
 st.set_page_config(page_title="26AS Professional Reconciliation", layout="wide")
 
@@ -76,8 +76,8 @@ with st.sidebar:
 # ---------------- HEADER ----------------
 st.markdown("""
 <div style="text-align: center; margin-bottom: 30px;">
-    <div class="header-title">26AS Professional Reconciliation</div>
-    <div class="header-sub">AI-Powered Matching Engine: 26AS vs Books</div>
+    <div class="header-title">26AS Enterprise Reconciliation</div>
+    <div class="header-sub">RapidFuzz AI Matching | Multi-Branch | Section Analytics</div>
     <div class="krishna">🦚 श्री कृष्णाय नमः 🙏</div>
     <div class="shloka">
         कर्मण्येवाधिकारस्ते मा फलेषु कदाचन ।<br>
@@ -87,7 +87,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="zone">📄 Step 1: Upload original TRACES Form 26AS (.txt) and Books Excel</div>', unsafe_allow_html=True)
+st.markdown('<div class="zone">📄 Step 1: Upload original TRACES 26AS (.txt) and Books Excel (Select multiple files for Multi-Branch)</div>', unsafe_allow_html=True)
 
 # ---------------- SAMPLE BOOKS TEMPLATE ----------------
 sample_books = pd.DataFrame({
@@ -111,7 +111,7 @@ col_txt, col_exc = st.columns(2)
 with col_txt:
     txt_file = st.file_uploader("Upload TRACES 26AS TEXT file", type=["txt"])
 with col_exc:
-    books_file = st.file_uploader("Upload Books Excel", type=["xlsx", "xls"])
+    books_files = st.file_uploader("Upload Books Excel (Multi-branch supported)", type=["xlsx", "xls"], accept_multiple_files=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
 
@@ -159,287 +159,304 @@ def extract_26as_summary_and_section(file_bytes):
         df.insert(0, "Section", df["TAN of Deductor"].map(section_map).fillna(""))
     return df
 
-# ---------------- PROCESS ----------------
-col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
-with col_btn2:
-    run_btn = st.button("🚀 RUN RECONCILIATION ENGINE")
+# ---------------- CACHED AI ENGINE ----------------
+@st.cache_data(show_spinner=False)
+def process_data(txt_bytes, books_bytes_list):
+    structured_26as = extract_26as_summary_and_section(txt_bytes)
+    
+    if structured_26as.empty:
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
-if run_btn:
-    if not txt_file or not books_file:
-        st.warning("⚠️ Please upload both files to proceed.")
+    # Read and aggregate Multi-Branch Books
+    dfs = []
+    for f_bytes in books_bytes_list:
+        dfs.append(pd.read_excel(io.BytesIO(f_bytes)))
+    books = pd.concat(dfs, ignore_index=True)
+
+    required_cols = ["Party Name", "TAN", "Books Amount", "Books TDS"]
+    for col in required_cols:
+        if col not in books.columns:
+            books[col] = "" if col in ["Party Name", "TAN"] else 0
+
+    books["TAN"] = books["TAN"].fillna("").astype(str).str.strip().str.upper()
+    
+    # Aggregate duplicate parties across branches
+    numeric_cols = ["Books Amount", "Books TDS"]
+    for col in numeric_cols:
+        books[col] = pd.to_numeric(books[col], errors="coerce").fillna(0)
+    books = books.groupby(['Party Name', 'TAN'], as_index=False)[numeric_cols].sum()
+
+    structured_26as["TAN of Deductor"] = structured_26as["TAN of Deductor"].astype(str).str.strip().str.upper()
+
+    # ================= FUZZY MATCHING (RAPIDFUZZ) =================
+    exact_match = pd.merge(structured_26as, books, left_on="TAN of Deductor", right_on="TAN", how="inner")
+    exact_match["Match Type"] = "Exact (TAN)"
+
+    rem_26as = structured_26as[~structured_26as["TAN of Deductor"].isin(exact_match["TAN of Deductor"])]
+    rem_books = books[~books["TAN"].isin(exact_match["TAN"])]
+
+    fuzzy_records = []
+    matched_books_indices = set()
+    
+    # Create RapidFuzz dictionary pool
+    book_choices = {idx: str(row["Party Name"]).upper() for idx, row in rem_books.iterrows()}
+
+    for idx_26, row_26 in rem_26as.iterrows():
+        name_26 = str(row_26["Name of Deductor"]).upper()
+        
+        if not book_choices:
+            combined = row_26.to_dict()
+            combined["Match Type"] = "Missing in Books"
+            fuzzy_records.append(combined)
+            continue
+            
+        result = process.extractOne(name_26, book_choices, scorer=fuzz.token_sort_ratio, score_cutoff=70)
+        
+        if result:
+            best_match_str, best_score, best_book_idx = result
+            best_match_row = rem_books.loc[best_book_idx]
+            
+            combined = row_26.to_dict()
+            combined.update(best_match_row.to_dict())
+            combined["Match Type"] = "Fuzzy Match"
+            fuzzy_records.append(combined)
+            
+            matched_books_indices.add(best_book_idx)
+            del book_choices[best_book_idx] # Remove to prevent double mapping
+        else:
+            combined = row_26.to_dict()
+            combined["Match Type"] = "Missing in Books"
+            fuzzy_records.append(combined)
+
+    for idx_bk, row_bk in rem_books.iterrows():
+        if idx_bk not in matched_books_indices:
+            combined = row_bk.to_dict()
+            combined["Match Type"] = "Missing in 26AS"
+            fuzzy_records.append(combined)
+
+    fuzzy_df = pd.DataFrame(fuzzy_records) if fuzzy_records else pd.DataFrame()
+    recon = pd.concat([exact_match, fuzzy_df], ignore_index=True)
+
+    recon["Deductor / Party Name"] = np.where(recon["Name of Deductor"].notna() & (recon["Name of Deductor"] != ""), recon["Name of Deductor"], recon["Party Name"])
+    recon["Final TAN"] = np.where(recon["TAN of Deductor"].notna() & (recon["TAN of Deductor"] != ""), recon["TAN of Deductor"], recon["TAN"])
+
+    return recon, structured_26as, books
+
+# ---------------- MAIN APPLICATION LOGIC ----------------
+if txt_file and books_files:
+    
+    # 1. Process Core Data
+    with st.spinner("Running High-Speed RapidFuzz Engine..."):
+        books_bytes_list = [f.getvalue() for f in books_files]
+        raw_recon, structured_26as, books = process_data(txt_file.getvalue(), books_bytes_list)
+
+    if raw_recon.empty:
+        st.error("❌ No valid PART-I summary detected in the 26AS text file.")
         st.stop()
 
-    with st.spinner("Running AI Matching Engine..."):
-        structured_26as = extract_26as_summary_and_section(txt_file.getvalue())
+    recon = raw_recon.copy()
 
-        if structured_26as.empty:
-            st.error("❌ No valid PART-I summary detected in the text file.")
-            st.stop()
+    # 2. Manual Match Editor (Interactive UI)
+    unmatched_26 = recon[recon['Match Type'] == 'Missing in Books'].copy()
+    unmatched_bk_names = recon[recon['Match Type'] == 'Missing in 26AS']['Party Name'].dropna().unique().tolist()
 
-        books = pd.read_excel(books_file)
-
-        # File Validation
-        required_cols = ["Party Name", "TAN", "Books Amount", "Books TDS"]
-        for col in required_cols:
-            if col not in books.columns:
-                books[col] = "" if col in ["Party Name", "TAN"] else 0
-
-        # Data Cleaning
-        structured_26as["TAN of Deductor"] = structured_26as["TAN of Deductor"].astype(str).str.strip().str.upper()
-        books["TAN"] = books["TAN"].fillna("").astype(str).str.strip().str.upper()
-
-        # ================= FUZZY MATCHING LOGIC =================
-        exact_match = pd.merge(structured_26as, books, left_on="TAN of Deductor", right_on="TAN", how="inner")
-        exact_match["Match Type"] = "Exact (TAN)"
-
-        rem_26as = structured_26as[~structured_26as["TAN of Deductor"].isin(exact_match["TAN of Deductor"])]
-        rem_books = books[~books["TAN"].isin(exact_match["TAN"])]
-
-        fuzzy_records = []
-        matched_books_indices = set()
-
-        for idx_26, row_26 in rem_26as.iterrows():
-            name_26 = str(row_26["Name of Deductor"]).upper()
-            best_match = None
-            best_score = 0
-            best_book_idx = -1
-
-            for idx_bk, row_bk in rem_books.iterrows():
-                if idx_bk in matched_books_indices: continue
-                name_bk = str(row_bk["Party Name"]).upper()
+    if not unmatched_26.empty and unmatched_bk_names:
+        st.markdown("### 🤝 Interactive Manual Match Editor")
+        st.info("Force-match unrecognized companies. Select the correct Books Party from the dropdown in the table below.")
+        
+        unmatched_26['Manual Map to Books Party'] = ""
+        
+        edited_unmatched = st.data_editor(
+            unmatched_26[['Name of Deductor', 'TAN of Deductor', 'Total TDS Deposited', 'Manual Map to Books Party']],
+            column_config={
+                "Manual Map to Books Party": st.column_config.SelectboxColumn(
+                    "Select Books Party",
+                    help="Select a missing books party to link to this 26AS record",
+                    options=[""] + unmatched_bk_names,
+                    required=False
+                )
+            },
+            disabled=["Name of Deductor", "TAN of Deductor", "Total TDS Deposited"],
+            use_container_width=True,
+            key="manual_editor"
+        )
+        
+        manual_matches = edited_unmatched[edited_unmatched['Manual Map to Books Party'].notna() & (edited_unmatched['Manual Map to Books Party'] != "")]
+        
+        # Apply manual mappings instantly
+        if not manual_matches.empty:
+            for idx, manual_row in manual_matches.iterrows():
+                tan_26 = manual_row['TAN of Deductor']
+                target_bk_name = manual_row['Manual Map to Books Party']
                 
-                score = difflib.SequenceMatcher(None, name_26, name_bk).ratio()
-                if score > best_score and score >= 0.70:
-                    best_score = score
-                    best_match = row_bk
-                    best_book_idx = idx_bk
-
-            if best_match is not None:
-                combined = row_26.to_dict()
-                combined.update(best_match.to_dict())
-                combined["Match Type"] = "Fuzzy Match"
-                fuzzy_records.append(combined)
-                matched_books_indices.add(best_book_idx)
-            else:
-                combined = row_26.to_dict()
-                combined["Match Type"] = "Missing in Books"
-                fuzzy_records.append(combined)
-
-        for idx_bk, row_bk in rem_books.iterrows():
-            if idx_bk not in matched_books_indices:
-                combined = row_bk.to_dict()
-                combined["Match Type"] = "Missing in 26AS"
-                fuzzy_records.append(combined)
-
-        fuzzy_df = pd.DataFrame(fuzzy_records) if fuzzy_records else pd.DataFrame()
-        recon = pd.concat([exact_match, fuzzy_df], ignore_index=True)
-
-        # Unified Name and TAN columns
-        recon["Deductor / Party Name"] = np.where(recon["Name of Deductor"].notna() & (recon["Name of Deductor"] != ""), recon["Name of Deductor"], recon["Party Name"])
-        recon["Final TAN"] = np.where(recon["TAN of Deductor"].notna() & (recon["TAN of Deductor"] != ""), recon["TAN of Deductor"], recon["TAN"])
-
-        # Fill NaNs for numeric calculations
-        numeric_cols = ["Total Amount Paid / Credited", "Total TDS Deposited", "Books Amount", "Books TDS"]
-        for col in numeric_cols:
-            if col in recon.columns:
-                recon[col] = pd.to_numeric(recon[col], errors="coerce").fillna(0)
-
-        recon["Difference Amount"] = recon["Total Amount Paid / Credited"] - recon["Books Amount"]
-        recon["Difference TDS"] = recon["Total TDS Deposited"] - recon["Books TDS"]
-
-        # ================= ASSIGN STATUS AND REASON =================
-        diff_tds = recon["Difference TDS"].abs()
-        
-        conditions_status = [
-            (recon["Match Type"] == "Exact (TAN)") & (diff_tds <= tolerance),
-            (recon["Match Type"] == "Exact (TAN)") & (diff_tds > tolerance),
-            (recon["Match Type"] == "Fuzzy Match") & (diff_tds <= tolerance),
-            (recon["Match Type"] == "Fuzzy Match") & (diff_tds > tolerance),
-            (recon["Match Type"] == "Missing in Books"),
-            (recon["Match Type"] == "Missing in 26AS")
-        ]
-        
-        statuses = ["Exact Match", "Value Mismatch", "Fuzzy Match", "Value Mismatch", "Missing in Books", "Missing in 26AS"]
-        reasons = [
-            "Matched perfectly", 
-            "TDS value mismatch", 
-            "Matched ignoring name formatting", 
-            "TDS value mismatch", 
-            "Not recorded in Books", 
-            "Not reflected in 26AS"
-        ]
-        
-        recon["Match Status"] = np.select(conditions_status, statuses, default="Unknown")
-        recon["Reason for Difference"] = np.select(conditions_status, reasons, default="Unknown")
-
-        final_recon = recon[[
-            "Section", "Match Status", "Deductor / Party Name", "Final TAN",
-            "Total Amount Paid / Credited", "Books Amount", "Difference Amount",
-            "Total TDS Deposited", "Books TDS", "Difference TDS", "Reason for Difference"
-        ]].rename(columns={"Final TAN": "TAN"})
-
-        # --- Dashboard Metrics ---
-        st.markdown("### 📊 Live Summary Dashboard")
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Total TDS in 26AS", f"₹ {recon['Total TDS Deposited'].sum():,.2f}")
-        m2.metric("Total TDS in Books", f"₹ {recon['Books TDS'].sum():,.2f}")
-        net_diff = recon['Total TDS Deposited'].sum() - recon['Books TDS'].sum()
-        m3.metric("Net Variance", f"₹ {net_diff:,.2f}", delta=f"₹ {net_diff:,.2f}", delta_color="inverse")
-
-        # --- High Caution / Analytics ---
-        st.markdown("### 🚨 AI Financial Alerts")
-        
-        miss_in_books = recon[recon["Match Status"] == "Missing in Books"]
-        if not miss_in_books.empty and miss_in_books["Total TDS Deposited"].sum() > 0:
-            total_missed = miss_in_books["Total TDS Deposited"].sum()
-            top_missed = miss_in_books.loc[miss_in_books["Total TDS Deposited"].idxmax()]
-            st.markdown(f"""
-            <div class="alert-box-red">
-                <b>URGENT: Unclaimed TDS Leakage!</b> ₹ {total_missed:,.2f} is reflecting in 26AS but is completely <b>MISSING</b> in your books.<br>
-                <span style="color: #fca5a5; font-size: 0.95rem;"><i>👉 Top Missing Party: <b>{top_missed['Deductor / Party Name']}</b> (₹ {top_missed['Total TDS Deposited']:,.2f}).</i></span>
-            </div>
-            """, unsafe_allow_html=True)
-
-        miss_in_26as = recon[recon["Match Status"] == "Missing in 26AS"]
-        if not miss_in_26as.empty and miss_in_26as["Books TDS"].sum() > 0:
-            total_excess = miss_in_26as["Books TDS"].sum()
-            top_excess = miss_in_26as.loc[miss_in_26as["Books TDS"].idxmax()]
-            st.markdown(f"""
-            <div class="alert-box-yellow">
-                <b>COMPLIANCE RISK:</b> ₹ {total_excess:,.2f} of TDS is claimed in your Books but <b>NOT uploaded in 26AS</b>.<br>
-                <span style="color: #fcd34d; font-size: 0.95rem;"><i>👉 Top Unreflected Party: <b>{top_excess['Deductor / Party Name']}</b> (₹ {top_excess['Books TDS']:,.2f}). Follow up immediately!</i></span>
-            </div>
-            """, unsafe_allow_html=True)
-
-        # --- Charts ---
-        st.markdown("### 📈 Top 10 Analytics")
-        c1, c2 = st.columns(2)
-        
-        with c1:
-            top_26as = final_recon.nlargest(10, "Total TDS Deposited")
-            fig1 = px.pie(top_26as, names="Deductor / Party Name", values="Total TDS Deposited", title="Top 10 Deductors in 26AS (by TDS)", hole=0.4)
-            fig1.update_layout(paper_bgcolor="rgba(0,0,0,0)", font=dict(color="#f8fafc", family="Poppins"))
-            fig1.update_traces(textposition='inside', textinfo='percent+label')
-            st.plotly_chart(fig1, use_container_width=True)
-            
-        with c2:
-            top_books = final_recon.nlargest(10, "Books TDS")
-            fig2 = px.pie(top_books, names="Deductor / Party Name", values="Books TDS", title="Top 10 Parties in Books (by TDS)", hole=0.4)
-            fig2.update_layout(paper_bgcolor="rgba(0,0,0,0)", font=dict(color="#f8fafc", family="Poppins"))
-            fig2.update_traces(textposition='inside', textinfo='percent+label')
-            st.plotly_chart(fig2, use_container_width=True)
-
-        # --- Excel Export ---
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-            workbook = writer.book
-            
-            brand_format = workbook.add_format({"bold": True, "font_size": 18, "bg_color": "#0f172a", "font_color": "#38bdf8", "align": "center", "valign": "vcenter"})
-            dev_format = workbook.add_format({"italic": True, "font_size": 10, "bg_color": "#0f172a", "font_color": "#94a3b8", "align": "center"})
-            
-            # Formats for Dashboard and Headers
-            fmt_dark_blue_white = workbook.add_format({
-                "bold": True, "bg_color": "#0052cc", "font_color": "white", 
-                "border": 1, "text_wrap": True, "align": "center", "valign": "vcenter"
-            })
-            fmt_subtotal = workbook.add_format({"bold": True, "bg_color": "#f2f2f2", "border": 1, "num_format": "#,##0.00"})
-
-            # A. Dashboard
-            dash = workbook.add_worksheet("Dashboard")
-            dash.hide_gridlines(2)
-            
-            dash.merge_range("A1:K2", "26AS RECON PRO - EXECUTIVE SUMMARY", brand_format)
-            dash.merge_range("A3:K3", "Developed by ABHISHEK JAKKULA | jakkulaabhishek5@gmail.com", dev_format)
-
-            dash.write_row("B5", ["Match Status", "Record Count", "TDS Impact (26AS)", "TDS Impact (Books)"], fmt_dark_blue_white)
-            dash.set_column('B:B', 25)
-            dash.set_column('C:E', 18)
-
-            dashboard_statuses = ["Exact Match", "Fuzzy Match", "Value Mismatch", "Missing in Books", "Missing in 26AS"]
-            for i, status in enumerate(dashboard_statuses):
-                row = 5 + i
-                dash.write(row, 1, status)
-                dash.write_formula(row, 2, f'=COUNTIF(Reconciliation!$B$3:$B${max_rows}, "{status}")')
-                # 26AS TDS is column H, Books TDS is column I in the recon sheet
-                dash.write_formula(row, 3, f'=SUMIF(Reconciliation!$B$3:$B${max_rows}, "{status}", Reconciliation!$H$3:$H${max_rows})')
-                dash.write_formula(row, 4, f'=SUMIF(Reconciliation!$B$3:$B${max_rows}, "{status}", Reconciliation!$I$3:$I${max_rows})')
-
-            dash.write("G5", "Top 10 Suppliers (26AS)", fmt_dark_blue_white)
-            dash.write_row("G6", ["Deductor / Party Name", "Total Amount (26AS)", "Total TDS (26AS)"], fmt_dark_blue_white)
-            for r_idx, row in top_26as.iterrows():
-                dash.write_row(r_idx + 6, 6, [row["Deductor / Party Name"], row["Total Amount Paid / Credited"], row["Total TDS Deposited"]])
-            dash.set_column('G:G', 35)
-            dash.set_column('H:I', 18)
-
-            dash.write("K5", "Top 10 Suppliers (Books)", fmt_dark_blue_white)
-            dash.write_row("K6", ["Deductor / Party Name", "Books Amount", "Books TDS"], fmt_dark_blue_white)
-            for r_idx, row in top_books.iterrows():
-                dash.write_row(r_idx + 6, 10, [row["Deductor / Party Name"], row["Books Amount"], row["Books TDS"]])
-            dash.set_column('K:K', 35)
-            dash.set_column('L:M', 18)
-
-            pie_chart = workbook.add_chart({'type': 'doughnut'})
-            pie_chart.add_series({
-                'name': 'Status Distribution',
-                'categories': f'=Dashboard!$B$6:$B$10',
-                'values': f'=Dashboard!$C$6:$C$10',
-                'data_labels': {'percentage': True}
-            })
-            dash.insert_chart('B13', pie_chart)
-
-            bar_26 = workbook.add_chart({'type': 'column'})
-            bar_26.add_series({
-                'name': 'TDS (26AS)',
-                'categories': f'=Dashboard!$G$7:$G${6 + len(top_26as)}',
-                'values': f'=Dashboard!$I$7:$I${6 + len(top_26as)}',
-                'data_labels': {'value': True}
-            })
-            bar_26.set_title({'name': 'Top 10 Deductors (26AS)'})
-            dash.insert_chart('G18', bar_26, {'x_scale': 1.2, 'y_scale': 1.2})
-
-            bar_pr = workbook.add_chart({'type': 'column'})
-            bar_pr.add_series({
-                'name': 'TDS (Books)',
-                'categories': f'=Dashboard!$K$7:$K${6 + len(top_books)}',
-                'values': f'=Dashboard!$M$7:$M${6 + len(top_books)}',
-                'data_labels': {'value': True}
-            })
-            bar_pr.set_title({'name': 'Top 10 Parties (Books)'})
-            dash.insert_chart('K18', bar_pr, {'x_scale': 1.2, 'y_scale': 1.2})
-
-            # B. Reconciliation Sheet
-            sheet_recon = workbook.add_worksheet("Reconciliation")
-            final_recon.to_excel(writer, sheet_name="Reconciliation", startrow=2, index=False, header=False)
-            
-            for col_num, col_name in enumerate(final_recon.columns):
-                sheet_recon.write(1, col_num, col_name, fmt_dark_blue_white)
+                row_26_idx = recon[(recon['TAN of Deductor'] == tan_26) & (recon['Match Type'] == 'Missing in Books')].index
+                row_bk_idx = recon[(recon['Party Name'] == target_bk_name) & (recon['Match Type'] == 'Missing in 26AS')].index
                 
-                if pd.api.types.is_numeric_dtype(final_recon[col_name]):
-                    col_letter = chr(65 + col_num) 
-                    formula = f"=SUBTOTAL(9,{col_letter}3:{col_letter}{max_rows})"
-                    sheet_recon.write_formula(0, col_num, formula, fmt_subtotal)
+                if not row_26_idx.empty and not row_bk_idx.empty:
+                    i_26, i_bk = row_26_idx[0], row_bk_idx[0]
+                    
+                    recon.at[i_26, 'Party Name'] = recon.at[i_bk, 'Party Name']
+                    recon.at[i_26, 'TAN'] = recon.at[i_bk, 'TAN']
+                    recon.at[i_26, 'Books Amount'] = recon.at[i_bk, 'Books Amount']
+                    recon.at[i_26, 'Books TDS'] = recon.at[i_bk, 'Books TDS']
+                    recon.at[i_26, 'Match Type'] = 'Manual Match'
+                    recon.at[i_26, 'Deductor / Party Name'] = recon.at[i_26, 'Name of Deductor']
+                    
+                    recon = recon.drop(index=i_bk)
 
-            sheet_recon.set_column('A:B', 20)
-            sheet_recon.set_column('C:C', 45)
-            sheet_recon.set_column('D:D', 18)
-            sheet_recon.set_column('E:J', 16)
-            sheet_recon.set_column('K:K', 25)
-            sheet_recon.autofilter(1, 0, max_rows, len(final_recon.columns) - 1)
+    # 3. Finalize Calculations
+    num_cols = ["Total Amount Paid / Credited", "Total TDS Deposited", "Books Amount", "Books TDS"]
+    for col in num_cols:
+        recon[col] = pd.to_numeric(recon[col], errors="coerce").fillna(0)
 
-            # C. Raw Data Sheets
-            structured_26as.to_excel(writer, sheet_name="26AS Raw", index=False)
-            books.to_excel(writer, sheet_name="Books Raw", index=False)
+    recon["Difference Amount"] = recon["Total Amount Paid / Credited"] - recon["Books Amount"]
+    recon["Difference TDS"] = recon["Total TDS Deposited"] - recon["Books TDS"]
 
-        output.seek(0)
+    diff_tds = recon["Difference TDS"].abs()
+    
+    conditions_status = [
+        (recon["Match Type"].isin(["Exact (TAN)", "Manual Match"])) & (diff_tds <= tolerance),
+        (recon["Match Type"].isin(["Exact (TAN)", "Manual Match"])) & (diff_tds > tolerance),
+        (recon["Match Type"] == "Fuzzy Match") & (diff_tds <= tolerance),
+        (recon["Match Type"] == "Fuzzy Match") & (diff_tds > tolerance),
+        (recon["Match Type"] == "Missing in Books"),
+        (recon["Match Type"] == "Missing in 26AS")
+    ]
+    
+    statuses = ["Exact Match", "Value Mismatch", "Fuzzy Match", "Value Mismatch", "Missing in Books", "Missing in 26AS"]
+    reasons = ["Matched perfectly", "TDS value mismatch", "Matched ignoring name formatting", "TDS value mismatch", "Not recorded in Books", "Not reflected in 26AS"]
+    
+    recon["Match Status"] = np.select(conditions_status, statuses, default="Unknown")
+    recon["Reason for Difference"] = np.select(conditions_status, reasons, default="Unknown")
 
-        col_dl1, col_dl2, col_dl3 = st.columns([1,2,1])
-        with col_dl2:
-            st.download_button("⚡ Download Final Ultimate Excel Report", output, "26AS_Recon_Pro.xlsx")
+    final_recon = recon[[
+        "Section", "Match Status", "Deductor / Party Name", "Final TAN",
+        "Total Amount Paid / Credited", "Books Amount", "Difference Amount",
+        "Total TDS Deposited", "Books TDS", "Difference TDS", "Reason for Difference"
+    ]].rename(columns={"Final TAN": "TAN"})
 
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.subheader("👁️ Preview Engine Output")
+    # --- Dashboard Metrics ---
+    st.markdown("---")
+    st.markdown("### 📊 Live Summary Dashboard")
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Total TDS in 26AS", f"₹ {recon['Total TDS Deposited'].sum():,.2f}")
+    m2.metric("Total TDS in Books", f"₹ {recon['Books TDS'].sum():,.2f}")
+    net_diff = recon['Total TDS Deposited'].sum() - recon['Books TDS'].sum()
+    m3.metric("Net Variance", f"₹ {net_diff:,.2f}", delta=f"₹ {net_diff:,.2f}", delta_color="inverse")
+
+    # --- Section Analytics ---
+    st.markdown("### 📑 Section-Wise TDS Discrepancies")
+    section_summary = recon.groupby('Section')[['Total TDS Deposited', 'Books TDS']].sum().reset_index()
+    # Remove blank sections (mostly missing in 26AS)
+    section_summary = section_summary[section_summary['Section'] != ""]
+    fig_sec = px.bar(section_summary, x='Section', y=['Total TDS Deposited', 'Books TDS'], barmode='group', title="TDS Claimed vs Reflected by Section")
+    fig_sec.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font=dict(color="#f8fafc", family="Poppins"))
+    st.plotly_chart(fig_sec, use_container_width=True)
+
+    # --- High Caution / Analytics ---
+    st.markdown("### 🚨 AI Financial Alerts")
+    miss_in_books = recon[recon["Match Status"] == "Missing in Books"]
+    if not miss_in_books.empty and miss_in_books["Total TDS Deposited"].sum() > 0:
+        total_missed = miss_in_books["Total TDS Deposited"].sum()
+        top_missed = miss_in_books.loc[miss_in_books["Total TDS Deposited"].idxmax()]
+        st.markdown(f"""
+        <div class="alert-box-red">
+            <b>URGENT: Unclaimed TDS Leakage!</b> ₹ {total_missed:,.2f} is reflecting in 26AS but is completely <b>MISSING</b> in your books.<br>
+            <span style="color: #fca5a5; font-size: 0.95rem;"><i>👉 Top Missing Party: <b>{top_missed['Deductor / Party Name']}</b> (₹ {top_missed['Total TDS Deposited']:,.2f}).</i></span>
+        </div>
+        """, unsafe_allow_html=True)
+
+    miss_in_26as = recon[recon["Match Status"] == "Missing in 26AS"]
+    if not miss_in_26as.empty and miss_in_26as["Books TDS"].sum() > 0:
+        total_excess = miss_in_26as["Books TDS"].sum()
+        top_excess = miss_in_26as.loc[miss_in_26as["Books TDS"].idxmax()]
+        st.markdown(f"""
+        <div class="alert-box-yellow">
+            <b>COMPLIANCE RISK:</b> ₹ {total_excess:,.2f} of TDS is claimed in your Books but <b>NOT uploaded in 26AS</b>.<br>
+            <span style="color: #fcd34d; font-size: 0.95rem;"><i>👉 Top Unreflected Party: <b>{top_excess['Deductor / Party Name']}</b> (₹ {top_excess['Books TDS']:,.2f}). Follow up immediately!</i></span>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # --- Excel Export ---
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+        workbook = writer.book
+        brand_format = workbook.add_format({"bold": True, "font_size": 18, "bg_color": "#0f172a", "font_color": "#38bdf8", "align": "center", "valign": "vcenter"})
+        dev_format = workbook.add_format({"italic": True, "font_size": 10, "bg_color": "#0f172a", "font_color": "#94a3b8", "align": "center"})
+        fmt_dark_blue_white = workbook.add_format({"bold": True, "bg_color": "#0052cc", "font_color": "white", "border": 1, "text_wrap": True, "align": "center", "valign": "vcenter"})
+        fmt_subtotal = workbook.add_format({"bold": True, "bg_color": "#f2f2f2", "border": 1, "num_format": "#,##0.00"})
+
+        # A. Dashboard
+        dash = workbook.add_worksheet("Dashboard")
+        dash.hide_gridlines(2)
         
-        # Filter Dropdown
-        selected_status = st.multiselect("Filter by Match Status:", options=dashboard_statuses, default=dashboard_statuses)
-        filtered_df = final_recon[final_recon["Match Status"].isin(selected_status)]
-        st.dataframe(filtered_df.head(100), use_container_width=True)
+        dash.merge_range("A1:K2", "26AS RECON PRO - EXECUTIVE SUMMARY", brand_format)
+        dash.merge_range("A3:K3", "Developed by ABHISHEK JAKKULA | jakkulaabhishek5@gmail.com", dev_format)
+
+        dash.write_row("B5", ["Match Status", "Record Count", "TDS Impact (26AS)", "TDS Impact (Books)"], fmt_dark_blue_white)
+        dash.set_column('B:B', 25)
+        dash.set_column('C:E', 18)
+
+        dashboard_statuses = ["Exact Match", "Fuzzy Match", "Value Mismatch", "Missing in Books", "Missing in 26AS"]
+        for i, status in enumerate(dashboard_statuses):
+            row = 5 + i
+            dash.write(row, 1, status)
+            dash.write_formula(row, 2, f'=COUNTIF(Reconciliation!$B$3:$B${max_rows}, "{status}")')
+            dash.write_formula(row, 3, f'=SUMIF(Reconciliation!$B$3:$B${max_rows}, "{status}", Reconciliation!$H$3:$H${max_rows})')
+            dash.write_formula(row, 4, f'=SUMIF(Reconciliation!$B$3:$B${max_rows}, "{status}", Reconciliation!$I$3:$I${max_rows})')
+
+        top_26as = final_recon.nlargest(10, "Total TDS Deposited")
+        top_books = final_recon.nlargest(10, "Books TDS")
+
+        dash.write("G5", "Top 10 Suppliers (26AS)", fmt_dark_blue_white)
+        dash.write_row("G6", ["Deductor / Party Name", "Total Amount (26AS)", "Total TDS (26AS)"], fmt_dark_blue_white)
+        for r_idx, row in top_26as.iterrows():
+            dash.write_row(r_idx + 6, 6, [row["Deductor / Party Name"], row["Total Amount Paid / Credited"], row["Total TDS Deposited"]])
+        dash.set_column('G:G', 35)
+        dash.set_column('H:I', 18)
+
+        dash.write("K5", "Top 10 Suppliers (Books)", fmt_dark_blue_white)
+        dash.write_row("K6", ["Deductor / Party Name", "Books Amount", "Books TDS"], fmt_dark_blue_white)
+        for r_idx, row in top_books.iterrows():
+            dash.write_row(r_idx + 6, 10, [row["Deductor / Party Name"], row["Books Amount"], row["Books TDS"]])
+        dash.set_column('K:K', 35)
+        dash.set_column('L:M', 18)
+
+        pie_chart = workbook.add_chart({'type': 'doughnut'})
+        pie_chart.add_series({
+            'name': 'Status Distribution',
+            'categories': f'=Dashboard!$B$6:$B$10',
+            'values': f'=Dashboard!$C$6:$C$10',
+            'data_labels': {'percentage': True}
+        })
+        dash.insert_chart('B13', pie_chart)
+
+        # B. Reconciliation Sheet
+        sheet_recon = workbook.add_worksheet("Reconciliation")
+        final_recon.to_excel(writer, sheet_name="Reconciliation", startrow=2, index=False, header=False)
+        
+        for col_num, col_name in enumerate(final_recon.columns):
+            sheet_recon.write(1, col_num, col_name, fmt_dark_blue_white)
+            if pd.api.types.is_numeric_dtype(final_recon[col_name]):
+                col_letter = chr(65 + col_num) 
+                formula = f"=SUBTOTAL(9,{col_letter}3:{col_letter}{max_rows})"
+                sheet_recon.write_formula(0, col_num, formula, fmt_subtotal)
+
+        sheet_recon.set_column('A:B', 20)
+        sheet_recon.set_column('C:C', 45)
+        sheet_recon.set_column('D:D', 18)
+        sheet_recon.set_column('E:J', 16)
+        sheet_recon.set_column('K:K', 25)
+        sheet_recon.autofilter(1, 0, max_rows, len(final_recon.columns) - 1)
+
+        # C. Raw Data Sheets
+        structured_26as.to_excel(writer, sheet_name="26AS Raw", index=False)
+        books.to_excel(writer, sheet_name="Books Raw", index=False)
+
+    output.seek(0)
+
+    st.success("✅ Smart Reconciliation completed successfully.")
+
+    col_dl1, col_dl2, col_dl3 = st.columns([1,2,1])
+    with col_dl2:
+        st.download_button("⚡ Download Final Enterprise Report", output, "26AS_Recon_Enterprise.xlsx")
