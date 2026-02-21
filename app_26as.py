@@ -276,43 +276,23 @@ if st.session_state.run_engine:
 
     recon = raw_recon.copy()
 
-    # ---------------- INTERACTIVE MANUAL EDITOR ----------------
-    unmatched_26 = recon[recon['Match Type'] == 'Missing in Books'].copy()
-    unmatched_bk_names = recon[recon['Match Type'] == 'Missing in 26AS']['Party Name'].dropna().unique().tolist()
+    # Apply known dictionary mappings automatically
+    if known_mappings:
+        for tan_26, target_bk_name in known_mappings.items():
+            row_26_idx = recon[(recon['TAN of Deductor'] == tan_26) & (recon['Match Type'] == 'Missing in Books')].index
+            row_bk_idx = recon[(recon['Party Name'] == target_bk_name) & (recon['Match Type'] == 'Missing in 26AS')].index
+            
+            if not row_26_idx.empty and not row_bk_idx.empty:
+                i_26, i_bk = row_26_idx[0], row_bk_idx[0]
+                recon.at[i_26, 'Party Name'] = recon.at[i_bk, 'Party Name']
+                recon.at[i_26, 'TAN'] = recon.at[i_bk, 'TAN']
+                recon.at[i_26, 'Books Amount'] = recon.at[i_bk, 'Books Amount']
+                recon.at[i_26, 'Books TDS'] = recon.at[i_bk, 'Books TDS']
+                recon.at[i_26, 'Match Type'] = 'Dictionary Match'
+                recon.at[i_26, 'Deductor / Party Name'] = recon.at[i_26, 'Name of Deductor']
+                recon = recon.drop(index=i_bk)
 
-    if not unmatched_26.empty and unmatched_bk_names:
-        st.markdown("---")
-        st.markdown("### 🤝 Interactive Manual Match Editor")
-        st.info("Force-match unrecognized companies below. These matches will be saved in your Mapping Dictionary.")
-        unmatched_26['Manual Map to Books Party'] = unmatched_26['TAN of Deductor'].map(known_mappings).fillna("")
-        
-        edited_unmatched = st.data_editor(
-            unmatched_26[['Name of Deductor', 'TAN of Deductor', 'Total TDS Deposited', 'Manual Map to Books Party']],
-            column_config={"Manual Map to Books Party": st.column_config.SelectboxColumn("Select Books Party", options=[""] + unmatched_bk_names, required=False)},
-            disabled=["Name of Deductor", "TAN of Deductor", "Total TDS Deposited"], use_container_width=True, key="manual_editor"
-        )
-        
-        manual_matches = edited_unmatched[edited_unmatched['Manual Map to Books Party'].notna() & (edited_unmatched['Manual Map to Books Party'] != "")]
-        if not manual_matches.empty:
-            for idx, manual_row in manual_matches.iterrows():
-                tan_26, target_bk_name = manual_row['TAN of Deductor'], manual_row['Manual Map to Books Party']
-                row_26_idx = recon[(recon['TAN of Deductor'] == tan_26) & (recon['Match Type'] == 'Missing in Books')].index
-                row_bk_idx = recon[(recon['Party Name'] == target_bk_name) & (recon['Match Type'] == 'Missing in 26AS')].index
-                
-                if not row_26_idx.empty and not row_bk_idx.empty:
-                    i_26, i_bk = row_26_idx[0], row_bk_idx[0]
-                    recon.at[i_26, 'Party Name'] = recon.at[i_bk, 'Party Name']
-                    recon.at[i_26, 'TAN'] = recon.at[i_bk, 'TAN']
-                    recon.at[i_26, 'Books Amount'] = recon.at[i_bk, 'Books Amount']
-                    recon.at[i_26, 'Books TDS'] = recon.at[i_bk, 'Books TDS']
-                    recon.at[i_26, 'Match Type'] = 'Manual Match'
-                    recon.at[i_26, 'Deductor / Party Name'] = recon.at[i_26, 'Name of Deductor']
-                    known_mappings[tan_26] = target_bk_name
-                    recon = recon.drop(index=i_bk)
-
-    mapping_export_df = pd.DataFrame(list(known_mappings.items()), columns=['TAN of Deductor', 'Mapped Books Party'])
-
-    # Calculations
+    # Core Calculations
     num_cols = ["Total Amount Paid / Credited", "Total TDS Deposited", "Books Amount", "Books TDS"]
     for col in num_cols: recon[col] = pd.to_numeric(recon[col], errors="coerce").fillna(0)
 
@@ -322,8 +302,8 @@ if st.session_state.run_engine:
 
     diff_tds = recon["Difference TDS"].abs()
     conditions_status = [
-        (recon["Match Type"].isin(["Exact (TAN)", "Manual Match"])) & (diff_tds <= tolerance),
-        (recon["Match Type"].isin(["Exact (TAN)", "Manual Match"])) & (diff_tds > tolerance),
+        (recon["Match Type"].isin(["Exact (TAN)", "Dictionary Match"])) & (diff_tds <= tolerance),
+        (recon["Match Type"].isin(["Exact (TAN)", "Dictionary Match"])) & (diff_tds > tolerance),
         (recon["Match Type"] == "Fuzzy Match") & (diff_tds <= tolerance),
         (recon["Match Type"] == "Fuzzy Match") & (diff_tds > tolerance),
         (recon["Match Type"] == "Missing in Books"),
@@ -341,23 +321,7 @@ if st.session_state.run_engine:
         "Total TDS Deposited", "Books TDS", "Difference TDS", "Effective Rate 26AS (%)", "Reason for Difference"
     ]].rename(columns={"Final TAN": "TAN"})
 
-    # --- Dashboard ---
-    st.markdown("---")
-    st.markdown("### 📊 Live Summary Dashboard")
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Total TDS in 26AS", f"₹ {recon['Total TDS Deposited'].sum():,.2f}")
-    m2.metric("Total TDS in Books", f"₹ {recon['Books TDS'].sum():,.2f}")
-    net_diff = recon['Total TDS Deposited'].sum() - recon['Books TDS'].sum()
-    m3.metric("Net Variance", f"₹ {net_diff:,.2f}", delta=f"₹ {net_diff:,.2f}", delta_color="inverse")
-
-    st.markdown("### 📑 Section-Wise TDS Discrepancies")
-    section_summary = recon.groupby('Section')[['Total TDS Deposited', 'Books TDS']].sum().reset_index()
-    section_summary = section_summary[section_summary['Section'] != ""]
-    fig_sec = px.bar(section_summary, x='Section', y=['Total TDS Deposited', 'Books TDS'], barmode='group', title="TDS Claimed vs Reflected by Section")
-    fig_sec.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font=dict(color="#f8fafc", family="Poppins"))
-    st.plotly_chart(fig_sec, use_container_width=True)
-
-    # --- Compliance Alerts & Email Generator ---
+    # ---------------- COMPLIANCE ALERTS & AUTOMATED EMAILS (AT THE TOP) ----------------
     st.markdown("### 🚨 Compliance Alerts & Automated Communications")
     
     anomalies = recon[(recon['Effective Rate 26AS (%)'] > 0) & (~recon['Effective Rate 26AS (%)'].isin([1.0, 2.0, 5.0, 10.0, 20.0]))]
@@ -390,7 +354,6 @@ if st.session_state.run_engine:
         </div>
         """, unsafe_allow_html=True)
         
-        # --- FIXED AI EMAIL GENERATOR TABLE ---
         st.markdown("#### ✉️ Automated AI Email Generator")
         st.info("Click 'Draft AI Email ✉️' below to instantly open your email client without opening a blank tab.")
 
@@ -422,6 +385,38 @@ if st.session_state.run_engine:
             
         html_table += '</table>'
         st.markdown(html_table, unsafe_allow_html=True)
+
+    # ---------------- DASHBOARD & ANALYTICS ----------------
+    st.markdown("---")
+    st.markdown("### 📊 Live Summary Dashboard")
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Total TDS in 26AS", f"₹ {recon['Total TDS Deposited'].sum():,.2f}")
+    m2.metric("Total TDS in Books", f"₹ {recon['Books TDS'].sum():,.2f}")
+    net_diff = recon['Total TDS Deposited'].sum() - recon['Books TDS'].sum()
+    m3.metric("Net Variance", f"₹ {net_diff:,.2f}", delta=f"₹ {net_diff:,.2f}", delta_color="inverse")
+
+    st.markdown("### 📈 Reconciliation Analytics")
+    c1, c2 = st.columns(2)
+    
+    with c1:
+        # Match Status Pie Chart
+        status_counts = final_recon["Match Status"].value_counts().reset_index()
+        status_counts.columns = ["Match Status", "Count"]
+        color_map = {
+            "Exact Match": "#10b981", "Fuzzy Match": "#38bdf8", 
+            "Value Mismatch": "#ef4444", "Missing in Books": "#f97316", "Missing in 26AS": "#8b5cf6"
+        }
+        fig_status = px.pie(status_counts, names="Match Status", values="Count", title="Match Status Distribution", hole=0.4, color="Match Status", color_discrete_map=color_map)
+        fig_status.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font=dict(color="#f8fafc", family="Poppins"))
+        st.plotly_chart(fig_status, use_container_width=True)
+
+    with c2:
+        # Section-Wise Bar Chart
+        section_summary = recon.groupby('Section')[['Total TDS Deposited', 'Books TDS']].sum().reset_index()
+        section_summary = section_summary[section_summary['Section'] != ""]
+        fig_sec = px.bar(section_summary, x='Section', y=['Total TDS Deposited', 'Books TDS'], barmode='group', title="TDS Claimed vs Reflected by Section")
+        fig_sec.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font=dict(color="#f8fafc", family="Poppins"), legend_title_text="")
+        st.plotly_chart(fig_sec, use_container_width=True)
 
     # --- Excel Export ---
     output = io.BytesIO()
@@ -479,6 +474,7 @@ if st.session_state.run_engine:
         pie_books.set_title({'name': 'Top 10 Parties (Books)'})
         dash.insert_chart('K18', pie_books)
 
+        # B. Reconciliation Sheet with Auto-Width
         sheet_recon = workbook.add_worksheet("Reconciliation")
         final_recon.to_excel(writer, sheet_name="Reconciliation", startrow=2, index=False, header=False)
         
@@ -494,6 +490,7 @@ if st.session_state.run_engine:
 
         sheet_recon.autofilter(1, 0, max_rows, len(final_recon.columns) - 1)
 
+        # C. Raw Data Sheets with Auto-Width
         structured_26as.to_excel(writer, sheet_name="26AS Raw", index=False)
         sheet_26_raw = writer.sheets["26AS Raw"]
         for i, col in enumerate(structured_26as.columns):
@@ -509,11 +506,8 @@ if st.session_state.run_engine:
     output.seek(0)
     st.success("✅ Enterprise Reconciliation completed successfully.")
 
-    csv_buffer = io.StringIO(); mapping_export_df.to_csv(csv_buffer, index=False)
-    csv_data = csv_buffer.getvalue().encode('utf-8')
-
     fy_safe = extracted_fy.replace('-', '_') if extracted_fy != 'Unknown' else 'Latest'
     
-    col_dl1, col_dl2, col_dl3 = st.columns(3)
-    with col_dl1: st.download_button("⚡ Download Final Excel Report", output, f"26AS_Recon_FY_{fy_safe}.xlsx", use_container_width=True)
-    with col_dl2: st.download_button("💾 Save Mapping Dictionary (CSV)", csv_data, "Mapping_Dictionary.csv", help="Upload this next time to auto-match vendors!", use_container_width=True)
+    col_dl1, col_dl2, col_dl3 = st.columns([1,2,1])
+    with col_dl2: 
+        st.download_button("⚡ Download Final Excel Report", output, f"26AS_Recon_FY_{fy_safe}.xlsx", use_container_width=True)
