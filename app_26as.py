@@ -6,7 +6,7 @@ import io
 import plotly.express as px
 from rapidfuzz import process, fuzz
 
-st.set_page_config(page_title="26AS Professional Reconciliation", layout="wide")
+st.set_page_config(page_title="26AS Enterprise Reconciliation", layout="wide")
 
 # ---------------- ULTRA STYLISH CSS ----------------
 st.markdown("""
@@ -24,8 +24,6 @@ st.markdown("""
     }
     
     .header-sub { color: #94a3b8; font-size: 1.2rem; font-weight: 600; margin-top: 5px; margin-bottom: 15px; }
-    .krishna { font-size: 1.4rem; margin-top: 10px; color: #f8fafc; }
-    .shloka { color: #34d399; font-style: italic; font-size: 1rem; margin-top: 5px; opacity: 0.9; }
     .dev-credit { color: #64748b; font-weight: 600; margin-top: 20px; font-size: 0.95rem; }
     .dev-credit b { color: #38bdf8; }
 
@@ -59,6 +57,10 @@ st.markdown("""
         background: rgba(245, 158, 11, 0.1); border-left: 5px solid #f59e0b; 
         padding: 18px; border-radius: 8px; margin-bottom: 12px; font-size: 1.05rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
     }
+    .alert-box-blue {
+        background: rgba(56, 189, 248, 0.1); border-left: 5px solid #38bdf8; 
+        padding: 18px; border-radius: 8px; margin-bottom: 12px; font-size: 1.05rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+    }
     .zone {
         background: rgba(30, 41, 59, 0.4); padding: 18px; border-radius: 14px;
         border: 1px solid rgba(255, 255, 255, 0.05); margin-bottom: 18px; text-align: center; color: #cbd5e1; font-weight: 600;
@@ -79,55 +81,88 @@ with st.sidebar:
     st.markdown("### ⚙️ Engine Settings")
     tolerance = st.number_input("Mismatch Tolerance (₹)", min_value=0, value=10, step=1, on_change=reset_engine)
     max_rows = st.number_input("Max Rows for Excel Formulas", min_value=1000, value=15000, step=1000)
+    
+    st.markdown("---")
+    st.markdown("### 🧠 AI Smart Memory")
+    st.info("Upload a previously saved Mapping Dictionary to auto-match custom vendor names.")
+    mapping_file = st.file_uploader("Upload Dictionary (CSV)", type=['csv'], on_change=reset_engine)
+    
+    known_mappings = {}
+    if mapping_file:
+        try:
+            map_df = pd.read_csv(mapping_file)
+            if 'TAN of Deductor' in map_df.columns and 'Mapped Books Party' in map_df.columns:
+                known_mappings = dict(zip(map_df['TAN of Deductor'].astype(str).str.strip().str.upper(), 
+                                          map_df['Mapped Books Party'].astype(str).str.strip().str.upper()))
+                st.success(f"Loaded {len(known_mappings)} custom mappings!")
+        except Exception as e:
+            st.error("Invalid dictionary format.")
 
 # ---------------- HEADER ----------------
 st.markdown("""
 <div style="text-align: center; margin-bottom: 30px;">
     <div class="header-title">26AS Enterprise Reconciliation</div>
-    <div class="header-sub">RapidFuzz AI Matching | Section Analytics</div>
-    <div class="krishna">🦚 श्री कृष्णाय नमः 🙏</div>
-    <div class="shloka">
-        कर्मण्येवाधिकारस्ते मा फलेषु कदाचन ।<br>
-        मा कर्मफलहेतुर्भूर्मा ते सङ्गोऽस्त्वकर्मणि ॥
-    </div>
+    <div class="header-sub">RapidFuzz AI | ERP Column Mapper | TDS Rate Auditor</div>
     <div class="dev-credit">Developed by <b>Abhishek Jakkula</b></div>
 </div>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="zone">📄 Step 1: Upload original TRACES 26AS (.txt) and Books Excel</div>', unsafe_allow_html=True)
-
-# ---------------- SAMPLE BOOKS TEMPLATE ----------------
-sample_books = pd.DataFrame({
-    "Party Name": ["ABC Pvt Ltd", "XYZ Corp"],
-    "TAN": ["HYDA00000A", ""],
-    "Books Amount": [100000, 50000],
-    "Books TDS": [10000, 5000]
-})
-buf = io.BytesIO()
-sample_books.to_excel(buf, index=False)
-buf.seek(0)
-
-col1, col2, col3 = st.columns([1, 2, 1])
-with col2:
-    st.download_button("⬇ Download Sample Books Excel Template", buf, "Sample_Books_Template.xlsx")
-
-st.markdown("<br>", unsafe_allow_html=True)
+st.markdown('<div class="zone">📄 Step 1: Upload original TRACES 26AS (.txt) and Raw Books Excel</div>', unsafe_allow_html=True)
 
 # ---------------- FILE UPLOAD ----------------
 col_txt, col_exc = st.columns(2)
 with col_txt:
     txt_file = st.file_uploader("Upload TRACES 26AS TEXT file", type=["txt"], on_change=reset_engine)
 with col_exc:
-    books_file = st.file_uploader("Upload Books Excel", type=["xlsx", "xls"], on_change=reset_engine)
+    books_file = st.file_uploader("Upload Raw Books Excel (ERP Dump)", type=["xlsx", "xls", "csv"], on_change=reset_engine)
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+# ---------------- DYNAMIC COLUMN MAPPER ----------------
+books_mapped_df = None
+
+if books_file:
+    try:
+        if books_file.name.endswith('.csv'):
+            raw_books = pd.read_csv(books_file)
+        else:
+            raw_books = pd.read_excel(books_file)
+            
+        cols = list(raw_books.columns)
+        
+        st.markdown('<div class="zone">🔀 Step 2: Map Your ERP Columns (No Template Needed)</div>', unsafe_allow_html=True)
+        
+        c1, c2, c3, c4 = st.columns(4)
+        
+        # Smart guesses for defaults
+        def guess_col(keywords):
+            for c in cols:
+                if any(k.lower() in c.lower() for k in keywords): return cols.index(c)
+            return 0
+            
+        map_party = c1.selectbox("Party / Vendor Name", cols, index=guess_col(["party", "vendor", "name", "ledger"]), on_change=reset_engine)
+        map_tan = c2.selectbox("TAN Column", cols, index=guess_col(["tan", "tax number"]), on_change=reset_engine)
+        map_amt = c3.selectbox("Taxable Amount Column", cols, index=guess_col(["amount", "taxable", "gross", "base"]), on_change=reset_engine)
+        map_tds = c4.selectbox("TDS Deducted Column", cols, index=guess_col(["tds", "tax", "deducted"]), on_change=reset_engine)
+
+        books_mapped_df = raw_books.rename(columns={
+            map_party: "Party Name",
+            map_tan: "TAN",
+            map_amt: "Books Amount",
+            map_tds: "Books TDS"
+        })
+        
+    except Exception as e:
+        st.error(f"Error reading Books file: {e}")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ---------------- BUTTON LOGIC ----------------
 col_b1, col_b2, col_b3 = st.columns([1, 2, 1])
 with col_b2:
-    if st.button("🚀 RUN RECONCILIATION ENGINE", use_container_width=True):
-        if not txt_file or not books_file:
-            st.warning("⚠️ Please upload both files to proceed.")
+    if st.button("🚀 RUN ENTERPRISE ENGINE", use_container_width=True):
+        if not txt_file or books_mapped_df is None:
+            st.warning("⚠️ Please upload and map both files to proceed.")
         else:
             st.session_state.run_engine = True
 
@@ -177,14 +212,13 @@ def extract_26as_summary_and_section(file_bytes):
 
 # ---------------- CACHED AI ENGINE ----------------
 @st.cache_data(show_spinner=False)
-def process_data(txt_bytes, books_bytes):
+def process_data(txt_bytes, books_df):
     structured_26as = extract_26as_summary_and_section(txt_bytes)
     
     if structured_26as.empty:
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
-    # Read Single Books File
-    books = pd.read_excel(io.BytesIO(books_bytes))
+    books = books_df.copy()
 
     required_cols = ["Party Name", "TAN", "Books Amount", "Books TDS"]
     for col in required_cols:
@@ -192,8 +226,8 @@ def process_data(txt_bytes, books_bytes):
             books[col] = "" if col in ["Party Name", "TAN"] else 0
 
     books["TAN"] = books["TAN"].fillna("").astype(str).str.strip().str.upper()
+    books["Party Name"] = books["Party Name"].fillna("").astype(str).str.strip().str.upper()
     
-    # Aggregate multiple invoices for the same party in books
     numeric_cols = ["Books Amount", "Books TDS"]
     for col in numeric_cols:
         books[col] = pd.to_numeric(books[col], errors="coerce").fillna(0)
@@ -201,7 +235,7 @@ def process_data(txt_bytes, books_bytes):
 
     structured_26as["TAN of Deductor"] = structured_26as["TAN of Deductor"].astype(str).str.strip().str.upper()
 
-    # ================= FUZZY MATCHING (RAPIDFUZZ) =================
+    # Exact Match
     exact_match = pd.merge(structured_26as, books, left_on="TAN of Deductor", right_on="TAN", how="inner")
     exact_match["Match Type"] = "Exact (TAN)"
 
@@ -211,8 +245,7 @@ def process_data(txt_bytes, books_bytes):
     fuzzy_records = []
     matched_books_indices = set()
     
-    # Create RapidFuzz dictionary pool
-    book_choices = {idx: str(row["Party Name"]).upper() for idx, row in rem_books.iterrows()}
+    book_choices = {idx: row["Party Name"] for idx, row in rem_books.iterrows()}
 
     for idx_26, row_26 in rem_26as.iterrows():
         name_26 = str(row_26["Name of Deductor"]).upper()
@@ -235,7 +268,7 @@ def process_data(txt_bytes, books_bytes):
             fuzzy_records.append(combined)
             
             matched_books_indices.add(best_book_idx)
-            del book_choices[best_book_idx] # Remove to prevent double mapping
+            del book_choices[best_book_idx] 
         else:
             combined = row_26.to_dict()
             combined["Match Type"] = "Missing in Books"
@@ -258,8 +291,8 @@ def process_data(txt_bytes, books_bytes):
 # ---------------- MAIN APPLICATION LOGIC ----------------
 if st.session_state.run_engine:
     
-    with st.spinner("Running High-Speed RapidFuzz Engine..."):
-        raw_recon, structured_26as, books = process_data(txt_file.getvalue(), books_file.getvalue())
+    with st.spinner("Running High-Speed AI Engine & Rate Auditor..."):
+        raw_recon, structured_26as, books = process_data(txt_file.getvalue(), books_mapped_df)
 
     if raw_recon.empty:
         st.error("❌ No valid PART-I summary detected in the 26AS text file.")
@@ -267,23 +300,23 @@ if st.session_state.run_engine:
 
     recon = raw_recon.copy()
 
-    # 2. Manual Match Editor (Interactive UI)
+    # ---------------- INTERACTIVE MANUAL EDITOR & SMART MEMORY ----------------
     unmatched_26 = recon[recon['Match Type'] == 'Missing in Books'].copy()
     unmatched_bk_names = recon[recon['Match Type'] == 'Missing in 26AS']['Party Name'].dropna().unique().tolist()
 
     if not unmatched_26.empty and unmatched_bk_names:
         st.markdown("---")
         st.markdown("### 🤝 Interactive Manual Match Editor")
-        st.info("Force-match unrecognized companies. Select the correct Books Party from the dropdown in the table below.")
+        st.info("Force-match unrecognized companies below. These matches will be saved in your Mapping Dictionary.")
         
-        unmatched_26['Manual Map to Books Party'] = ""
+        # Apply pre-loaded memory if available
+        unmatched_26['Manual Map to Books Party'] = unmatched_26['TAN of Deductor'].map(known_mappings).fillna("")
         
         edited_unmatched = st.data_editor(
             unmatched_26[['Name of Deductor', 'TAN of Deductor', 'Total TDS Deposited', 'Manual Map to Books Party']],
             column_config={
                 "Manual Map to Books Party": st.column_config.SelectboxColumn(
                     "Select Books Party",
-                    help="Select a missing books party to link to this 26AS record",
                     options=[""] + unmatched_bk_names,
                     required=False
                 )
@@ -314,15 +347,27 @@ if st.session_state.run_engine:
                     recon.at[i_26, 'Match Type'] = 'Manual Match'
                     recon.at[i_26, 'Deductor / Party Name'] = recon.at[i_26, 'Name of Deductor']
                     
+                    # Update active memory dictionary for export
+                    known_mappings[tan_26] = target_bk_name
+                    
                     recon = recon.drop(index=i_bk)
 
-    # 3. Finalize Calculations
+    # Generate downloadable mapping dict
+    mapping_export_df = pd.DataFrame(list(known_mappings.items()), columns=['TAN of Deductor', 'Mapped Books Party'])
+
+    # 3. Finalize Calculations & Effective Rate
     num_cols = ["Total Amount Paid / Credited", "Total TDS Deposited", "Books Amount", "Books TDS"]
     for col in num_cols:
         recon[col] = pd.to_numeric(recon[col], errors="coerce").fillna(0)
 
     recon["Difference Amount"] = recon["Total Amount Paid / Credited"] - recon["Books Amount"]
     recon["Difference TDS"] = recon["Total TDS Deposited"] - recon["Books TDS"]
+
+    # Effective Rate Calculator
+    recon['Effective Rate 26AS (%)'] = np.where(
+        recon['Total Amount Paid / Credited'] > 0,
+        (recon['Total TDS Deposited'] / recon['Total Amount Paid / Credited']) * 100, 0
+    ).round(2)
 
     diff_tds = recon["Difference TDS"].abs()
     
@@ -344,7 +389,7 @@ if st.session_state.run_engine:
     final_recon = recon[[
         "Section", "Match Status", "Deductor / Party Name", "Final TAN",
         "Total Amount Paid / Credited", "Books Amount", "Difference Amount",
-        "Total TDS Deposited", "Books TDS", "Difference TDS", "Reason for Difference"
+        "Total TDS Deposited", "Books TDS", "Difference TDS", "Effective Rate 26AS (%)", "Reason for Difference"
     ]].rename(columns={"Final TAN": "TAN"})
 
     # --- Dashboard Metrics ---
@@ -364,8 +409,22 @@ if st.session_state.run_engine:
     fig_sec.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font=dict(color="#f8fafc", family="Poppins"))
     st.plotly_chart(fig_sec, use_container_width=True)
 
-    # --- High Caution / Analytics ---
-    st.markdown("### 🚨 AI Financial Alerts")
+    # --- Compliance Alerts & Anomalies ---
+    st.markdown("### 🚨 Compliance & Anomaly Alerts")
+    
+    # Anomaly Auditor Logic (Rates over 0% that aren't standard 1, 2, 5, 10, 20)
+    standard_rates = [1.0, 2.0, 5.0, 10.0, 20.0]
+    anomalies = recon[(recon['Effective Rate 26AS (%)'] > 0) & (~recon['Effective Rate 26AS (%)'].isin(standard_rates))]
+    
+    if not anomalies.empty:
+        top_anomaly = anomalies.nlargest(1, 'Total TDS Deposited').iloc[0]
+        st.markdown(f"""
+        <div class="alert-box-blue">
+            <b>🔎 TDS Rate Anomaly Detected:</b> Non-standard deduction rates identified in 26AS.<br>
+            <span style="color: #7dd3fc; font-size: 0.95rem;"><i>👉 Example: <b>{top_anomaly['Deductor / Party Name']}</b> deducted TDS at an effective rate of <b>{top_anomaly['Effective Rate 26AS (%)']}%</b>. Please verify Section {top_anomaly['Section']} rules.</i></span>
+        </div>
+        """, unsafe_allow_html=True)
+
     miss_in_books = recon[recon["Match Status"] == "Missing in Books"]
     if not miss_in_books.empty and miss_in_books["Total TDS Deposited"].sum() > 0:
         total_missed = miss_in_books["Total TDS Deposited"].sum()
@@ -401,7 +460,7 @@ if st.session_state.run_engine:
         dash = workbook.add_worksheet("Dashboard")
         dash.hide_gridlines(2)
         
-        dash.merge_range("A1:K2", "26AS RECON PRO - EXECUTIVE SUMMARY", brand_format)
+        dash.merge_range("A1:K2", "26AS ENTERPRISE RECON - EXECUTIVE SUMMARY", brand_format)
         dash.merge_range("A3:K3", "Developed by ABHISHEK JAKKULA | jakkulaabhishek5@gmail.com", dev_format)
 
         dash.write_row("B5", ["Match Status", "Record Count", "TDS Impact (26AS)", "TDS Impact (Books)"], fmt_dark_blue_white)
@@ -448,7 +507,7 @@ if st.session_state.run_engine:
         
         for col_num, col_name in enumerate(final_recon.columns):
             sheet_recon.write(1, col_num, col_name, fmt_dark_blue_white)
-            if pd.api.types.is_numeric_dtype(final_recon[col_name]):
+            if pd.api.types.is_numeric_dtype(final_recon[col_name]) and col_name != "Effective Rate 26AS (%)":
                 col_letter = chr(65 + col_num) 
                 formula = f"=SUBTOTAL(9,{col_letter}3:{col_letter}{max_rows})"
                 sheet_recon.write_formula(0, col_num, formula, fmt_subtotal)
@@ -457,7 +516,7 @@ if st.session_state.run_engine:
         sheet_recon.set_column('C:C', 45)
         sheet_recon.set_column('D:D', 18)
         sheet_recon.set_column('E:J', 16)
-        sheet_recon.set_column('K:K', 25)
+        sheet_recon.set_column('K:L', 25)
         sheet_recon.autofilter(1, 0, max_rows, len(final_recon.columns) - 1)
 
         # C. Raw Data Sheets
@@ -466,8 +525,15 @@ if st.session_state.run_engine:
 
     output.seek(0)
 
-    st.success("✅ Smart Reconciliation completed successfully.")
+    st.success("✅ Enterprise Reconciliation completed successfully.")
 
-    col_dl1, col_dl2, col_dl3 = st.columns([1,2,1])
+    # Convert Mapping Dictionary to CSV for Download
+    csv_buffer = io.StringIO()
+    mapping_export_df.to_csv(csv_buffer, index=False)
+    csv_data = csv_buffer.getvalue().encode('utf-8')
+
+    col_dl1, col_dl2, col_dl3 = st.columns(3)
+    with col_dl1:
+        st.download_button("⚡ Download Final Excel Report", output, "26AS_Recon_Enterprise.xlsx")
     with col_dl2:
-        st.download_button("⚡ Download Final Enterprise Report", output, "26AS_Recon_Enterprise.xlsx")
+        st.download_button("💾 Save Mapping Dictionary (CSV)", csv_data, "Mapping_Dictionary.csv", help="Upload this next month to auto-match vendors!")
