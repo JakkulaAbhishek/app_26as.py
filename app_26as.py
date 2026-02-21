@@ -70,6 +70,15 @@ st.markdown("""
         background: rgba(30, 41, 59, 0.4); padding: 18px; border-radius: 14px;
         border: 1px solid rgba(255, 255, 255, 0.05); margin-bottom: 18px; text-align: center; color: #cbd5e1; font-weight: 600;
     }
+    
+    /* Custom Email Button to prevent blank tabs */
+    .email-btn {
+        display: inline-block; background: #1e293b; color: #38bdf8 !important; border: 1px solid #38bdf8;
+        padding: 8px 16px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.9rem;
+        transition: all 0.3s;
+    }
+    .email-btn:hover { background: #38bdf8; color: #0f172a !important; }
+    
     [data-testid="stDataFrame"] { background: transparent; }
 </style>
 """, unsafe_allow_html=True)
@@ -138,7 +147,7 @@ with col_txt:
 with col_exc:
     books_file = st.file_uploader("Upload Books Excel", type=["xlsx", "xls"], on_change=reset_engine)
 
-# Smart FY/AY Extraction Update
+# Smart FY/AY Extraction 
 extracted_pan = "Unknown"
 extracted_ay = "Unknown"
 extracted_fy = "Unknown"
@@ -387,36 +396,43 @@ if st.session_state.run_engine:
         </div>
         """, unsafe_allow_html=True)
         
-        # --- NEW AI EMAIL GENERATOR TABLE ---
+        # --- NEW CUSTOM HTML EMAIL TABLE (FIXES BLANK TAB ISSUE) ---
         st.markdown("#### ✉️ Automated AI Email Generator")
-        st.info("Click the 'Draft AI Email ✉️' link below to instantly open your email client with a pre-written message for the vendor.")
+        st.info("Click 'Draft AI Email ✉️' below to instantly open your email client without opening a blank tab.")
 
         email_df = miss_in_26as[miss_in_26as["Books TDS"] > 0].copy()
 
-        def create_mailto(row):
+        html_table = '''
+        <table style="width:100%; border-collapse: collapse; text-align: left; background: rgba(30, 41, 59, 0.4); border-radius: 8px; overflow: hidden; margin-bottom: 20px;">
+            <tr style="background: rgba(56, 189, 248, 0.1); border-bottom: 1px solid rgba(255,255,255,0.1);">
+                <th style="padding: 12px 15px; color: #38bdf8;">Vendor Name</th>
+                <th style="padding: 12px 15px; color: #38bdf8;">Missing TDS (₹)</th>
+                <th style="padding: 12px 15px; color: #38bdf8;">Action</th>
+            </tr>
+        '''
+        
+        for idx, row in email_df.sort_values(by="Books TDS", ascending=False).iterrows():
             party = str(row['Deductor / Party Name'])
             amt = f"{row['Books TDS']:,.2f}"
-            subject = urllib.parse.quote(f"Action Required: Missing TDS Reflection in 26AS - {party}")
+            subject = urllib.parse.quote(f"Action Required: Missing TDS Reflection in Form 26AS - {party}")
             fy_text = f"Financial Year {extracted_fy}" if extracted_fy != "Unknown" else "the current Financial Year"
             
             body = f"Dear Finance Team at {party},\n\nI hope this email finds you well.\n\nDuring our recent reconciliation, we noticed that TDS amounting to Rs. {amt} recorded in our books for {fy_text} is NOT reflecting in our Form 26AS.\n\nCould you please verify if the TDS returns for this period have been filed and if our PAN ({extracted_pan}) was quoted correctly? If there is any mismatch or if the return is pending, we kindly request you to rectify/file it at the earliest so we can claim our rightful tax credit.\n\nThank you for your prompt assistance in resolving this matter.\n\nBest Regards,\nFinance Team"
             
             body_encoded = urllib.parse.quote(body)
-            return f"mailto:?subject={subject}&body={body_encoded}"
+            # Safe mailto link - No target="_blank"
+            link = f"mailto:?subject={subject}&body={body_encoded}"
 
-        email_df["Send Follow-up"] = email_df.apply(create_mailto, axis=1)
-
-        # Display Interactive Table
-        st.dataframe(
-            email_df[["Deductor / Party Name", "Books TDS", "Send Follow-up"]].sort_values(by="Books TDS", ascending=False),
-            column_config={
-                "Deductor / Party Name": st.column_config.TextColumn("Vendor Name"),
-                "Books TDS": st.column_config.NumberColumn("Missing TDS (₹)", format="₹ %.2f"),
-                "Send Follow-up": st.column_config.LinkColumn("Action", display_text="Draft AI Email ✉️")
-            },
-            hide_index=True,
-            use_container_width=True
-        )
+            html_table += f'''
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <td style="padding: 12px 15px; color: #f8fafc;">{party}</td>
+                <td style="padding: 12px 15px; color: #f8fafc;">₹ {amt}</td>
+                <td style="padding: 12px 15px;"><a href="{link}" class="email-btn">Draft AI Email ✉️</a></td>
+            </tr>
+            '''
+            
+        html_table += "</table>"
+        st.markdown(html_table, unsafe_allow_html=True)
 
     # --- Excel Export ---
     output = io.BytesIO()
@@ -445,6 +461,7 @@ if st.session_state.run_engine:
             dash.write_formula(row, 3, f'=SUMIF(Reconciliation!$B$3:$B${max_rows}, "{status}", Reconciliation!$H$3:$H${max_rows})')
             dash.write_formula(row, 4, f'=SUMIF(Reconciliation!$B$3:$B${max_rows}, "{status}", Reconciliation!$I$3:$I${max_rows})')
 
+        # Filtered Top 10 lists & Enumerate index fix applied here
         top_26as = final_recon[final_recon["Total TDS Deposited"] > 0].nlargest(10, "Total TDS Deposited")
         top_books = final_recon[final_recon["Books TDS"] > 0].nlargest(10, "Books TDS")
 
