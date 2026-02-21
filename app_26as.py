@@ -137,28 +137,31 @@ with col_t2:
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# ---------------- FILE UPLOAD & FY VALIDATION ----------------
+# ---------------- FILE UPLOAD & YEAR VALIDATION ----------------
 col_txt, col_exc = st.columns(2)
 with col_txt:
     txt_file = st.file_uploader("Upload TRACES 26AS TEXT file", type=["txt"], on_change=reset_engine)
 with col_exc:
     books_file = st.file_uploader("Upload Books Excel", type=["xlsx", "xls"], on_change=reset_engine)
 
-# Smart FY Extraction
+# Smart FY/AY Extraction
 extracted_pan = "Unknown"
 extracted_ay = "Unknown"
+extracted_fy = "Unknown"
 
 if txt_file:
     raw_text = txt_file.getvalue().decode("utf-8", errors="ignore")
     pan_match = re.search(r'\^([A-Z]{5}\d{4}[A-Z])\^', raw_text)
     ay_match = re.search(r'Assessment Year\^(\d{4}-\d{2})', raw_text, re.IGNORECASE)
+    fy_match = re.search(r'Financial Year\^(\d{4}-\d{2})', raw_text, re.IGNORECASE)
     
     if pan_match: extracted_pan = pan_match.group(1)
     if ay_match: extracted_ay = ay_match.group(1)
+    if fy_match: extracted_fy = fy_match.group(1)
     
     st.markdown(f"""
     <div class="alert-box-green" style="text-align:center;">
-        <b>📌 Data Detected:</b> You are reconciling PAN <b>{extracted_pan}</b> for Assessment Year <b>{extracted_ay}</b>. Please ensure your Books match this period!
+        <b>📌 Data Detected:</b> You are reconciling PAN <b>{extracted_pan}</b> for Financial Year <b>{extracted_fy}</b> (AY {extracted_ay}). Please ensure your Books match this period!
     </div>
     """, unsafe_allow_html=True)
 
@@ -386,14 +389,13 @@ if st.session_state.run_engine:
         </div>
         """, unsafe_allow_html=True)
         
-        # 📧 Automated Email Generator
         with st.expander("✉️ Generate Follow-up Emails for Missing 26AS Parties"):
             st.info("Click a button below to automatically draft a follow-up email in your default email client.")
             for idx, row in miss_in_26as.nlargest(10, 'Books TDS').iterrows():
                 if row['Books TDS'] > 0:
                     party = str(row['Deductor / Party Name'])
                     subject = urllib.parse.quote(f"URGENT: Missing TDS Reflection in 26AS - {party}")
-                    body = urllib.parse.quote(f"Dear {party} Team,\n\nWe noticed that TDS amounting to Rs. {row['Books TDS']:,.2f} recorded in our books for Assessment Year {extracted_ay} is NOT reflecting in our Form 26AS.\n\nPlease file your TDS returns or correct the PAN mapping immediately to ensure we can claim our credit.\n\nRegards,\nFinance Team")
+                    body = urllib.parse.quote(f"Dear {party} Team,\n\nWe noticed that TDS amounting to Rs. {row['Books TDS']:,.2f} recorded in our books for Financial Year {extracted_fy} is NOT reflecting in our Form 26AS.\n\nPlease file your TDS returns or correct the PAN mapping immediately to ensure we can claim our credit.\n\nRegards,\nFinance Team")
                     st.markdown(f"<a href='mailto:?subject={subject}&body={body}' class='email-btn'>Draft Email: {party} (₹{row['Books TDS']:,.2f})</a>", unsafe_allow_html=True)
 
     # --- Excel Export ---
@@ -407,7 +409,9 @@ if st.session_state.run_engine:
 
         dash = workbook.add_worksheet("Dashboard")
         dash.hide_gridlines(2)
-        dash.merge_range("A1:K2", f"26AS ENTERPRISE RECON - EXECUTIVE SUMMARY (AY: {extracted_ay})", brand_format)
+        
+        fy_title = f"(FY: {extracted_fy})" if extracted_fy != "Unknown" else ""
+        dash.merge_range("A1:K2", f"26AS ENTERPRISE RECON - EXECUTIVE SUMMARY {fy_title}", brand_format)
         dash.merge_range("A3:K3", "Developed by ABHISHEK JAKKULA | jakkulaabhishek5@gmail.com", dev_format)
 
         dash.write_row("B5", ["Match Status", "Record Count", "TDS Impact (26AS)", "TDS Impact (Books)"], fmt_dark_blue_white)
@@ -421,8 +425,9 @@ if st.session_state.run_engine:
             dash.write_formula(row, 3, f'=SUMIF(Reconciliation!$B$3:$B${max_rows}, "{status}", Reconciliation!$H$3:$H${max_rows})')
             dash.write_formula(row, 4, f'=SUMIF(Reconciliation!$B$3:$B${max_rows}, "{status}", Reconciliation!$I$3:$I${max_rows})')
 
-        top_26as = final_recon.nlargest(10, "Total TDS Deposited")
-        top_books = final_recon.nlargest(10, "Books TDS")
+        # Filtered Top 10 lists
+        top_26as = final_recon[final_recon["Total TDS Deposited"] > 0].nlargest(10, "Total TDS Deposited")
+        top_books = final_recon[final_recon["Books TDS"] > 0].nlargest(10, "Books TDS")
 
         dash.write("G5", "Top 10 Suppliers (26AS)", fmt_dark_blue_white)
         dash.write_row("G6", ["Deductor / Party Name", "Total Amount (26AS)", "Total TDS (26AS)"], fmt_dark_blue_white)
@@ -448,6 +453,7 @@ if st.session_state.run_engine:
         pie_books.set_title({'name': 'Top 10 Parties (Books)'})
         dash.insert_chart('K18', pie_books)
 
+        # B. Reconciliation Sheet with Auto-Width
         sheet_recon = workbook.add_worksheet("Reconciliation")
         final_recon.to_excel(writer, sheet_name="Reconciliation", startrow=2, index=False, header=False)
         
@@ -457,13 +463,25 @@ if st.session_state.run_engine:
                 col_letter = chr(65 + col_num) 
                 formula = f"=SUBTOTAL(9,{col_letter}3:{col_letter}{max_rows})"
                 sheet_recon.write_formula(0, col_num, formula, fmt_subtotal)
+            
+            # Dynamic Column Auto-Width
+            max_len = max(final_recon[col_name].astype(str).map(len).max(), len(str(col_name)))
+            sheet_recon.set_column(col_num, col_num, min(max_len + 3, 45))
 
-        sheet_recon.set_column('A:B', 20); sheet_recon.set_column('C:C', 45); sheet_recon.set_column('D:D', 18)
-        sheet_recon.set_column('E:J', 16); sheet_recon.set_column('K:L', 25)
         sheet_recon.autofilter(1, 0, max_rows, len(final_recon.columns) - 1)
 
+        # C. Raw Data Sheets with Auto-Width
         structured_26as.to_excel(writer, sheet_name="26AS Raw", index=False)
+        sheet_26_raw = writer.sheets["26AS Raw"]
+        for i, col in enumerate(structured_26as.columns):
+            max_len = max(structured_26as[col].astype(str).map(len).max(), len(str(col)))
+            sheet_26_raw.set_column(i, i, min(max_len + 3, 45))
+
         books.to_excel(writer, sheet_name="Books Raw", index=False)
+        sheet_bk_raw = writer.sheets["Books Raw"]
+        for i, col in enumerate(books.columns):
+            max_len = max(books[col].astype(str).map(len).max(), len(str(col)))
+            sheet_bk_raw.set_column(i, i, min(max_len + 3, 45))
 
     output.seek(0)
     st.success("✅ Enterprise Reconciliation completed successfully.")
@@ -471,6 +489,8 @@ if st.session_state.run_engine:
     csv_buffer = io.StringIO(); mapping_export_df.to_csv(csv_buffer, index=False)
     csv_data = csv_buffer.getvalue().encode('utf-8')
 
+    fy_safe = extracted_fy.replace('-', '_') if extracted_fy != 'Unknown' else 'Latest'
+    
     col_dl1, col_dl2, col_dl3 = st.columns(3)
-    with col_dl1: st.download_button("⚡ Download Final Excel Report", output, "26AS_Recon_Enterprise.xlsx", use_container_width=True)
+    with col_dl1: st.download_button("⚡ Download Final Excel Report", output, f"26AS_Recon_FY_{fy_safe}.xlsx", use_container_width=True)
     with col_dl2: st.download_button("💾 Save Mapping Dictionary (CSV)", csv_data, "Mapping_Dictionary.csv", help="Upload this next time to auto-match vendors!", use_container_width=True)
