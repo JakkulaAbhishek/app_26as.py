@@ -8,72 +8,161 @@ from rapidfuzz import process, fuzz
 
 st.set_page_config(page_title="26AS Enterprise Reconciliation", layout="wide")
 
-# ---------------- ULTRA STYLISH CSS ----------------
+# ---------------- THEME SAFE PROFESSIONAL UI ----------------
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;800&display=swap');
-    
-    html, body, [class*="css"] { font-family: 'Poppins', sans-serif; }
-    .stApp { background: #0f172a; color: #f8fafc; }
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
 
-    .header-title {
-        background: linear-gradient(90deg, #38bdf8, #818cf8, #c084fc);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        font-weight: 800; font-size: 2.8rem; margin-bottom: 0px; line-height: 1.2;
-    }
-    
-    .header-sub { color: #94a3b8; font-size: 1.2rem; font-weight: 600; margin-top: 5px; margin-bottom: 15px; }
-    .dev-credit { color: #64748b; font-weight: 600; margin-top: 10px; font-size: 0.95rem; }
-    .dev-credit b { color: #38bdf8; }
+html, body, [class*="css"] {
+    font-family: 'Inter', sans-serif;
+}
 
-    .stButton>button, .stDownloadButton>button {
-        background: linear-gradient(90deg, #3b82f6, #8b5cf6);
-        color: white !important; border: none; border-radius: 8px;
-        padding: 10px 24px; font-weight: 600; transition: all 0.3s ease; width: 100%;
-    }
-    .stButton>button:hover, .stDownloadButton>button:hover {
-        transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(139, 92, 246, 0.5);
-    }
+/* Do NOT force dark background */
+.stApp {
+    background-color: transparent;
+}
 
+/* Header */
+.header-title {
+    font-weight: 800;
+    font-size: 2.8rem;
+    background: linear-gradient(90deg, #2563eb, #7c3aed);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    line-height: 1.2;
+}
+
+.header-sub {
+    font-size: 1.1rem;
+    font-weight: 600;
+    opacity: 0.8;
+    margin-top: 6px;
+}
+
+.dev-credit {
+    font-size: 0.95rem;
+    margin-top: 8px;
+    opacity: 0.7;
+}
+
+.dev-credit b {
+    color: #2563eb;
+}
+
+/* Buttons */
+.stButton>button,
+.stDownloadButton>button {
+    background: linear-gradient(90deg, #2563eb, #7c3aed);
+    color: white !important;
+    border-radius: 8px;
+    padding: 10px 24px;
+    font-weight: 600;
+    border: none;
+    transition: all 0.3s ease;
+}
+
+.stButton>button:hover,
+.stDownloadButton>button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(37, 99, 235, 0.4);
+}
+
+/* Metrics */
+[data-testid="stMetric"] {
+    background: rgba(0, 0, 0, 0.03);
+    border-radius: 14px;
+    padding: 20px;
+    border: 1px solid rgba(0,0,0,0.06);
+}
+
+@media (prefers-color-scheme: dark) {
     [data-testid="stMetric"] {
-        background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(255, 255, 255, 0.1);
-        backdrop-filter: blur(10px); padding: 20px; border-radius: 16px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.1);
     }
-    [data-testid="stMetricValue"] { color: #38bdf8; font-weight: 800; }
+}
 
-    [data-testid="stFileUploader"] {
-        background: rgba(30, 41, 59, 0.4) !important; border-radius: 16px !important;
-        padding: 1.5em !important; border: 1px dashed #64748b !important; transition: border 0.3s ease;
-    }
-    [data-testid="stFileUploader"]:hover { border-color: #38bdf8 !important; }
+[data-testid="stMetricValue"] {
+    font-weight: 800;
+    font-size: 1.6rem;
+}
 
-    .alert-box-red {
-        background: rgba(239, 68, 68, 0.1); border-left: 5px solid #ef4444; 
-        padding: 18px; border-radius: 8px; margin-bottom: 12px; font-size: 1.05rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-    }
-    .alert-box-yellow {
-        background: rgba(245, 158, 11, 0.1); border-left: 5px solid #f59e0b; 
-        padding: 18px; border-radius: 8px; margin-bottom: 12px; font-size: 1.05rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-    }
-    .alert-box-blue {
-        background: rgba(56, 189, 248, 0.1); border-left: 5px solid #38bdf8; 
-        padding: 18px; border-radius: 8px; margin-bottom: 12px; font-size: 1.05rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-    }
-    .alert-box-green {
-        background: rgba(16, 185, 129, 0.1); border-left: 5px solid #10b981; 
-        padding: 18px; border-radius: 8px; margin-bottom: 12px; font-size: 1.05rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-    }
+/* File uploader */
+[data-testid="stFileUploader"] {
+    border-radius: 12px !important;
+    border: 1px dashed rgba(100,116,139,0.4) !important;
+    padding: 1.2em !important;
+}
+
+/* Alert Boxes */
+.alert-box-red {
+    background: rgba(239, 68, 68, 0.08);
+    border-left: 5px solid #ef4444;
+    padding: 16px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+}
+
+.alert-box-yellow {
+    background: rgba(245, 158, 11, 0.08);
+    border-left: 5px solid #f59e0b;
+    padding: 16px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+}
+
+.alert-box-blue {
+    background: rgba(37, 99, 235, 0.08);
+    border-left: 5px solid #2563eb;
+    padding: 16px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+}
+
+.alert-box-green {
+    background: rgba(16, 185, 129, 0.08);
+    border-left: 5px solid #10b981;
+    padding: 16px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+}
+
+/* Dark mode alert adjustment */
+@media (prefers-color-scheme: dark) {
+    .alert-box-red { background: rgba(239,68,68,0.15); }
+    .alert-box-yellow { background: rgba(245,158,11,0.15); }
+    .alert-box-blue { background: rgba(37,99,235,0.15); }
+    .alert-box-green { background: rgba(16,185,129,0.15); }
+}
+
+/* Step zone */
+.zone {
+    background: rgba(0,0,0,0.03);
+    padding: 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(0,0,0,0.05);
+    margin-bottom: 18px;
+    text-align: center;
+    font-weight: 600;
+    opacity: 0.8;
+}
+
+@media (prefers-color-scheme: dark) {
     .zone {
-        background: rgba(30, 41, 59, 0.4); padding: 18px; border-radius: 14px;
-        border: 1px solid rgba(255, 255, 255, 0.05); margin-bottom: 18px; text-align: center; color: #cbd5e1; font-weight: 600;
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.1);
     }
-    
-    [data-testid="stDataFrame"] { background: transparent; }
+}
+
+/* Dataframe */
+[data-testid="stDataFrame"] {
+    background: transparent;
+}
+
+/* Hide default footer */
+footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
-
 # ---------------- STATE MANAGEMENT ----------------
 if 'run_engine' not in st.session_state:
     st.session_state.run_engine = False
