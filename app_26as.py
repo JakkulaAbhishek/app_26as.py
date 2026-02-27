@@ -8,150 +8,226 @@ from rapidfuzz import process, fuzz
 
 st.set_page_config(page_title="26AS Enterprise Reconciliation", layout="wide")
 
-# ---------------- THEME SAFE PROFESSIONAL UI ----------------
+# ----------- ULTRA STYLISH GLASSMORPHIC UI -----------
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
+
+/* Root variables for light/dark adaptation */
+:root {
+    --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --card-bg: rgba(255, 255, 255, 0.25);
+    --card-border: rgba(255, 255, 255, 0.18);
+    --text-primary: #2d3748;
+    --text-secondary: #4a5568;
+    --accent: #667eea;
+    --accent-light: #9f7aea;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+}
+
+/* Dark mode overrides (if Streamlit in dark) */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --card-bg: rgba(17, 25, 40, 0.75);
+        --card-border: rgba(255, 255, 255, 0.1);
+        --text-primary: #f7fafc;
+        --text-secondary: #e2e8f0;
+        --accent: #9f7aea;
+        --accent-light: #b794f4;
+    }
+    .stApp {
+        background: #0f172a;
+    }
+}
 
 html, body, [class*="css"] {
     font-family: 'Inter', sans-serif;
 }
 
-/* Do NOT force dark background */
+/* Animated background */
 .stApp {
-    background-color: transparent;
+    background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+    background-size: 400% 400%;
+    animation: gradient 15s ease infinite;
+    min-height: 100vh;
 }
 
-/* Header */
+@keyframes gradient {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+/* Glassmorphic card containers */
+.glass-card {
+    background: var(--card-bg);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 20px;
+    border: 1px solid var(--card-border);
+    padding: 2rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.glass-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.5);
+}
+
+/* Main Header */
 .header-title {
     font-weight: 800;
-    font-size: 2.8rem;
-    background: linear-gradient(90deg, #2563eb, #7c3aed);
+    font-size: 3.5rem;
+    text-align: center;
+    background: linear-gradient(90deg, #fff, #e0e7ff);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.2);
     line-height: 1.2;
+    letter-spacing: -0.02em;
 }
 
 .header-sub {
-    font-size: 1.1rem;
+    font-size: 1.2rem;
     font-weight: 600;
-    opacity: 0.8;
+    text-align: center;
+    color: var(--text-primary);
+    opacity: 0.9;
     margin-top: 6px;
 }
 
 .dev-credit {
-    font-size: 0.95rem;
+    font-size: 1rem;
+    text-align: center;
     margin-top: 8px;
-    opacity: 0.7;
+    color: var(--text-secondary);
 }
 
 .dev-credit b {
-    color: #2563eb;
+    background: linear-gradient(90deg, var(--accent), var(--accent-light));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* Zone (Step indicators) */
+.zone {
+    background: var(--card-bg);
+    backdrop-filter: blur(10px);
+    padding: 16px;
+    border-radius: 50px;
+    border: 1px solid var(--card-border);
+    text-align: center;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 18px;
+    font-size: 1.1rem;
+    letter-spacing: 0.5px;
+}
+
+/* File uploader */
+[data-testid="stFileUploader"] {
+    background: var(--card-bg) !important;
+    backdrop-filter: blur(10px);
+    border-radius: 15px !important;
+    border: 2px dashed var(--accent-light) !important;
+    padding: 1.2em !important;
+    transition: all 0.3s ease;
+}
+
+[data-testid="stFileUploader"]:hover {
+    border-color: var(--accent) !important;
+    background: rgba(255,255,255,0.15) !important;
 }
 
 /* Buttons */
 .stButton>button,
 .stDownloadButton>button {
-    background: linear-gradient(90deg, #2563eb, #7c3aed);
+    background: linear-gradient(90deg, var(--accent), var(--accent-light));
     color: white !important;
-    border-radius: 8px;
-    padding: 10px 24px;
+    border-radius: 50px;
+    padding: 12px 30px;
     font-weight: 600;
     border: none;
     transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    width: 100%;
 }
 
 .stButton>button:hover,
 .stDownloadButton>button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 15px rgba(37, 99, 235, 0.4);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
 }
 
 /* Metrics */
 [data-testid="stMetric"] {
-    background: rgba(0, 0, 0, 0.03);
-    border-radius: 14px;
+    background: var(--card-bg);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
     padding: 20px;
-    border: 1px solid rgba(0,0,0,0.06);
+    border: 1px solid var(--card-border);
+    transition: transform 0.3s ease;
 }
 
-@media (prefers-color-scheme: dark) {
-    [data-testid="stMetric"] {
-        background: rgba(255,255,255,0.05);
-        border: 1px solid rgba(255,255,255,0.1);
-    }
+[data-testid="stMetric"]:hover {
+    transform: scale(1.02);
 }
 
 [data-testid="stMetricValue"] {
     font-weight: 800;
-    font-size: 1.6rem;
+    font-size: 1.8rem;
+    color: var(--text-primary);
 }
 
-/* File uploader */
-[data-testid="stFileUploader"] {
-    border-radius: 12px !important;
-    border: 1px dashed rgba(100,116,139,0.4) !important;
-    padding: 1.2em !important;
+[data-testid="stMetricLabel"] {
+    color: var(--text-secondary);
 }
 
-/* Alert Boxes */
+/* Alert Boxes - Glassmorphic */
 .alert-box-red {
-    background: rgba(239, 68, 68, 0.08);
-    border-left: 5px solid #ef4444;
+    background: rgba(239, 68, 68, 0.15);
+    backdrop-filter: blur(10px);
+    border-left: 5px solid var(--danger);
     padding: 16px;
-    border-radius: 8px;
+    border-radius: 12px;
     margin-bottom: 12px;
+    color: var(--text-primary);
 }
 
 .alert-box-yellow {
-    background: rgba(245, 158, 11, 0.08);
-    border-left: 5px solid #f59e0b;
+    background: rgba(245, 158, 11, 0.15);
+    backdrop-filter: blur(10px);
+    border-left: 5px solid var(--warning);
     padding: 16px;
-    border-radius: 8px;
+    border-radius: 12px;
     margin-bottom: 12px;
+    color: var(--text-primary);
 }
 
 .alert-box-blue {
-    background: rgba(37, 99, 235, 0.08);
-    border-left: 5px solid #2563eb;
+    background: rgba(37, 99, 235, 0.15);
+    backdrop-filter: blur(10px);
+    border-left: 5px solid var(--accent);
     padding: 16px;
-    border-radius: 8px;
+    border-radius: 12px;
     margin-bottom: 12px;
+    color: var(--text-primary);
 }
 
 .alert-box-green {
-    background: rgba(16, 185, 129, 0.08);
-    border-left: 5px solid #10b981;
-    padding: 16px;
-    border-radius: 8px;
-    margin-bottom: 12px;
-}
-
-/* Dark mode alert adjustment */
-@media (prefers-color-scheme: dark) {
-    .alert-box-red { background: rgba(239,68,68,0.15); }
-    .alert-box-yellow { background: rgba(245,158,11,0.15); }
-    .alert-box-blue { background: rgba(37,99,235,0.15); }
-    .alert-box-green { background: rgba(16,185,129,0.15); }
-}
-
-/* Step zone */
-.zone {
-    background: rgba(0,0,0,0.03);
+    background: rgba(16, 185, 129, 0.15);
+    backdrop-filter: blur(10px);
+    border-left: 5px solid var(--success);
     padding: 16px;
     border-radius: 12px;
-    border: 1px solid rgba(0,0,0,0.05);
-    margin-bottom: 18px;
-    text-align: center;
-    font-weight: 600;
-    opacity: 0.8;
-}
-
-@media (prefers-color-scheme: dark) {
-    .zone {
-        background: rgba(255,255,255,0.05);
-        border: 1px solid rgba(255,255,255,0.1);
-    }
+    margin-bottom: 12px;
+    color: var(--text-primary);
 }
 
 /* Dataframe */
@@ -159,27 +235,72 @@ html, body, [class*="css"] {
     background: transparent;
 }
 
-/* Hide default footer */
+[data-testid="stDataFrame"] table {
+    background: var(--card-bg);
+    backdrop-filter: blur(5px);
+    border-radius: 15px;
+    overflow: hidden;
+}
+
+[data-testid="stDataFrame"] th {
+    background: var(--accent) !important;
+    color: white !important;
+    font-weight: 600;
+}
+
+[data-testid="stDataFrame"] td {
+    color: var(--text-primary);
+}
+
+/* Expander */
+.streamlit-expanderHeader {
+    background: var(--card-bg);
+    backdrop-filter: blur(10px);
+    border-radius: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.streamlit-expanderContent {
+    background: var(--card-bg);
+    backdrop-filter: blur(10px);
+    border-radius: 0 0 15px 15px;
+    border-top: none;
+}
+
+/* Sidebar */
+.css-1d391kg, .css-12oz5g7 {
+    background: var(--card-bg) !important;
+    backdrop-filter: blur(10px);
+}
+
+/* Hide default Streamlit footer */
 footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
-# ---------------- STATE MANAGEMENT ----------------
-if 'run_engine' not in st.session_state:
-    st.session_state.run_engine = False
 
-def reset_engine():
-    st.session_state.run_engine = False
+# Wrap the main content in a glass card
+st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+
+# ---------------- HEADER ----------------
+st.markdown("""
+<div style="text-align: center; margin-bottom: 30px;">
+    <div class="header-title">26AS Enterprise Reconciliation</div>
+    <div class="header-sub">RapidFuzz AI | Smart Memory | TDS Rate Auditor</div>
+    <div class="dev-credit">Developed by <b>Abhishek Jakkula</b></div>
+</div>
+""", unsafe_allow_html=True)
 
 # ---------------- SIDEBAR ----------------
 with st.sidebar:
     st.markdown("### ⚙️ Engine Settings")
-    tolerance = st.number_input("Mismatch Tolerance (₹)", min_value=0, value=10, step=1, on_change=reset_engine)
+    tolerance = st.number_input("Mismatch Tolerance (₹)", min_value=0, value=10, step=1)
     max_rows = st.number_input("Max Rows for Excel Formulas", min_value=1000, value=15000, step=1000)
     
     st.markdown("---")
     st.markdown("### 🧠 AI Smart Memory")
     st.info("Upload a previously saved Mapping Dictionary to auto-match custom vendor names.")
-    mapping_file = st.file_uploader("Upload Dictionary (CSV)", type=['csv'], on_change=reset_engine)
+    mapping_file = st.file_uploader("Upload Dictionary (CSV)", type=['csv'])
     
     known_mappings = {}
     if mapping_file:
@@ -191,15 +312,6 @@ with st.sidebar:
                 st.success(f"Loaded {len(known_mappings)} custom mappings!")
         except Exception as e:
             st.error("Invalid dictionary format.")
-
-# ---------------- HEADER ----------------
-st.markdown("""
-<div style="text-align: center; margin-bottom: 30px;">
-    <div class="header-title">26AS Enterprise Reconciliation</div>
-    <div class="header-sub">RapidFuzz AI | Smart Memory | TDS Rate Auditor</div>
-    <div class="dev-credit">Developed by <b>Abhishek Jakkula</b></div>
-</div>
-""", unsafe_allow_html=True)
 
 # ---------------- SAMPLE TEMPLATES ----------------
 st.markdown('<div class="zone">📄 Step 1: Upload original TRACES Form 26AS (.txt) and Books Excel</div>', unsafe_allow_html=True)
@@ -223,9 +335,9 @@ st.markdown("<br>", unsafe_allow_html=True)
 # ---------------- FILE UPLOAD & YEAR VALIDATION ----------------
 col_txt, col_exc = st.columns(2)
 with col_txt:
-    txt_file = st.file_uploader("Upload TRACES 26AS TEXT file", type=["txt"], on_change=reset_engine)
+    txt_file = st.file_uploader("Upload TRACES 26AS TEXT file", type=["txt"])
 with col_exc:
-    books_file = st.file_uploader("Upload Books Excel", type=["xlsx", "xls"], on_change=reset_engine)
+    books_file = st.file_uploader("Upload Books Excel", type=["xlsx", "xls"])
 
 extracted_pan = "Unknown"
 extracted_ay = "Unknown"
@@ -233,7 +345,6 @@ extracted_fy = "Unknown"
 
 if txt_file:
     raw_text = txt_file.getvalue().decode("utf-8", errors="ignore")
-    # Captures Date ^ PAN ^ Status ^ FY ^ AY structure
     header_match = re.search(r'\d{2}-\d{2}-\d{4}\^([A-Z]{5}\d{4}[A-Z])\^[^\^]*\^(\d{4}-\d{4})\^(\d{4}-\d{4})\^', raw_text)
     
     if header_match:
@@ -241,7 +352,6 @@ if txt_file:
         extracted_fy = header_match.group(2)
         extracted_ay = header_match.group(3)
     else:
-        # Fallback just in case
         pan_match = re.search(r'\^([A-Z]{5}\d{4}[A-Z])\^', raw_text)
         if pan_match: extracted_pan = pan_match.group(1)
     
@@ -256,11 +366,7 @@ st.markdown("<br>", unsafe_allow_html=True)
 # ---------------- BUTTON LOGIC ----------------
 col_b1, col_b2, col_b3 = st.columns([1, 2, 1])
 with col_b2:
-    if st.button("🚀 RUN ENTERPRISE ENGINE", use_container_width=True):
-        if not txt_file or not books_file:
-            st.warning("⚠️ Please upload both the 26AS and Books files to proceed.")
-        else:
-            st.session_state.run_engine = True
+    run_engine = st.button("🚀 RUN ENTERPRISE ENGINE", use_container_width=True)
 
 # ---------------- CACHED AI ENGINE ----------------
 @st.cache_data
@@ -350,217 +456,230 @@ def process_data(txt_bytes, books_bytes):
     return recon, structured_26as, books
 
 # ---------------- MAIN APPLICATION LOGIC ----------------
-if st.session_state.run_engine:
-    
-    with st.spinner("Running High-Speed AI Engine & Rate Auditor..."):
-        raw_recon, structured_26as, books = process_data(txt_file.getvalue(), books_file.getvalue())
+if run_engine:
+    if not txt_file or not books_file:
+        st.warning("⚠️ Please upload both the 26AS and Books files to proceed.")
+    else:
+        with st.spinner("Running High-Speed AI Engine & Rate Auditor..."):
+            raw_recon, structured_26as, books = process_data(txt_file.getvalue(), books_file.getvalue())
 
-    if raw_recon.empty:
-        st.error("❌ No valid PART-I summary detected in the 26AS text file.")
-        st.stop()
+        if raw_recon.empty:
+            st.error("❌ No valid PART-I summary detected in the 26AS text file.")
+            st.stop()
 
-    recon = raw_recon.copy()
+        recon = raw_recon.copy()
 
-    # Apply known dictionary mappings automatically
-    if known_mappings:
-        for tan_26, target_bk_name in known_mappings.items():
-            row_26_idx = recon[(recon['TAN of Deductor'] == tan_26) & (recon['Match Type'] == 'Missing in Books')].index
-            row_bk_idx = recon[(recon['Party Name'] == target_bk_name) & (recon['Match Type'] == 'Missing in 26AS')].index
-            
-            if not row_26_idx.empty and not row_bk_idx.empty:
-                i_26, i_bk = row_26_idx[0], row_bk_idx[0]
-                recon.at[i_26, 'Party Name'] = recon.at[i_bk, 'Party Name']
-                recon.at[i_26, 'TAN'] = recon.at[i_bk, 'TAN']
-                recon.at[i_26, 'Books Amount'] = recon.at[i_bk, 'Books Amount']
-                recon.at[i_26, 'Books TDS'] = recon.at[i_bk, 'Books TDS']
-                recon.at[i_26, 'Match Type'] = 'Dictionary Match'
-                recon.at[i_26, 'Deductor / Party Name'] = recon.at[i_26, 'Name of Deductor']
-                recon = recon.drop(index=i_bk)
+        # Apply known dictionary mappings automatically
+        if known_mappings:
+            for tan_26, target_bk_name in known_mappings.items():
+                row_26_idx = recon[(recon['TAN of Deductor'] == tan_26) & (recon['Match Type'] == 'Missing in Books')].index
+                row_bk_idx = recon[(recon['Party Name'] == target_bk_name) & (recon['Match Type'] == 'Missing in 26AS')].index
+                
+                if not row_26_idx.empty() and not row_bk_idx.empty():
+                    i_26, i_bk = row_26_idx[0], row_bk_idx[0]
+                    recon.at[i_26, 'Party Name'] = recon.at[i_bk, 'Party Name']
+                    recon.at[i_26, 'TAN'] = recon.at[i_bk, 'TAN']
+                    recon.at[i_26, 'Books Amount'] = recon.at[i_bk, 'Books Amount']
+                    recon.at[i_26, 'Books TDS'] = recon.at[i_bk, 'Books TDS']
+                    recon.at[i_26, 'Match Type'] = 'Dictionary Match'
+                    recon.at[i_26, 'Deductor / Party Name'] = recon.at[i_26, 'Name of Deductor']
+                    recon = recon.drop(index=i_bk)
 
-    # Core Calculations
-    num_cols = ["Total Amount Paid / Credited", "Total TDS Deposited", "Books Amount", "Books TDS"]
-    for col in num_cols: recon[col] = pd.to_numeric(recon[col], errors="coerce").fillna(0)
+        # Core Calculations
+        num_cols = ["Total Amount Paid / Credited", "Total TDS Deposited", "Books Amount", "Books TDS"]
+        for col in num_cols: recon[col] = pd.to_numeric(recon[col], errors="coerce").fillna(0)
 
-    recon["Difference Amount"] = recon["Total Amount Paid / Credited"] - recon["Books Amount"]
-    recon["Difference TDS"] = recon["Total TDS Deposited"] - recon["Books TDS"]
-    recon['Effective Rate 26AS (%)'] = np.where(recon['Total Amount Paid / Credited'] > 0, (recon['Total TDS Deposited'] / recon['Total Amount Paid / Credited']) * 100, 0).round(2)
+        recon["Difference Amount"] = recon["Total Amount Paid / Credited"] - recon["Books Amount"]
+        recon["Difference TDS"] = recon["Total TDS Deposited"] - recon["Books TDS"]
+        recon['Effective Rate 26AS (%)'] = np.where(recon['Total Amount Paid / Credited'] > 0, (recon['Total TDS Deposited'] / recon['Total Amount Paid / Credited']) * 100, 0).round(2)
 
-    diff_tds = recon["Difference TDS"].abs()
-    conditions_status = [
-        (recon["Match Type"].isin(["Exact (TAN)", "Dictionary Match"])) & (diff_tds <= tolerance),
-        (recon["Match Type"].isin(["Exact (TAN)", "Dictionary Match"])) & (diff_tds > tolerance),
-        (recon["Match Type"] == "Fuzzy Match") & (diff_tds <= tolerance),
-        (recon["Match Type"] == "Fuzzy Match") & (diff_tds > tolerance),
-        (recon["Match Type"] == "Missing in Books"),
-        (recon["Match Type"] == "Missing in 26AS")
-    ]
-    statuses = ["Exact Match", "Value Mismatch", "Fuzzy Match", "Value Mismatch", "Missing in Books", "Missing in 26AS"]
-    reasons = ["Matched perfectly", "TDS value mismatch", "Matched ignoring name formatting", "TDS value mismatch", "Not recorded in Books", "Not reflected in 26AS"]
-    
-    recon["Match Status"] = np.select(conditions_status, statuses, default="Unknown")
-    recon["Reason for Difference"] = np.select(conditions_status, reasons, default="Unknown")
-
-    final_recon = recon[[
-        "Section", "Match Status", "Deductor / Party Name", "Final TAN",
-        "Total Amount Paid / Credited", "Books Amount", "Difference Amount",
-        "Total TDS Deposited", "Books TDS", "Difference TDS", "Effective Rate 26AS (%)", "Reason for Difference"
-    ]].rename(columns={"Final TAN": "TAN"})
-
-    # ---------------- COMPLIANCE ALERTS (AT THE TOP) ----------------
-    st.markdown("### 🚨 Compliance & Anomaly Alerts")
-    
-    anomalies = recon[(recon['Effective Rate 26AS (%)'] > 0) & (~recon['Effective Rate 26AS (%)'].isin([1.0, 2.0, 5.0, 10.0, 20.0]))]
-    if not anomalies.empty:
-        top_anomaly = anomalies.nlargest(1, 'Total TDS Deposited').iloc[0]
-        st.markdown(f"""
-        <div class="alert-box-blue">
-            <b>🔎 TDS Rate Anomaly Detected:</b> Non-standard deduction rates identified.<br>
-            <span style="color: #7dd3fc; font-size: 0.95rem;"><i>👉 <b>{top_anomaly['Deductor / Party Name']}</b> deducted TDS at an effective rate of <b>{top_anomaly['Effective Rate 26AS (%)']}%</b>.</i></span>
-        </div>
-        """, unsafe_allow_html=True)
-
-    miss_in_books = recon[recon["Match Status"] == "Missing in Books"]
-    if not miss_in_books.empty and miss_in_books["Total TDS Deposited"].sum() > 0:
-        top_missed = miss_in_books.loc[miss_in_books["Total TDS Deposited"].idxmax()]
-        st.markdown(f"""
-        <div class="alert-box-red">
-            <b>URGENT: Unclaimed TDS Leakage!</b> ₹ {miss_in_books["Total TDS Deposited"].sum():,.2f} is in 26AS but completely <b>MISSING</b> in books.<br>
-            <span style="color: #fca5a5; font-size: 0.95rem;"><i>👉 Top Missing Party: <b>{top_missed['Deductor / Party Name']}</b> (₹ {top_missed['Total TDS Deposited']:,.2f}).</i></span>
-        </div>
-        """, unsafe_allow_html=True)
-
-    miss_in_26as = recon[recon["Match Status"] == "Missing in 26AS"]
-    if not miss_in_26as.empty and miss_in_26as["Books TDS"].sum() > 0:
-        top_excess = miss_in_26as.loc[miss_in_26as["Books TDS"].idxmax()]
-        st.markdown(f"""
-        <div class="alert-box-yellow">
-            <b>COMPLIANCE RISK:</b> ₹ {miss_in_26as["Books TDS"].sum():,.2f} of TDS is claimed in Books but <b>NOT uploaded in 26AS</b>.<br>
-            <span style="color: #fcd34d; font-size: 0.95rem;"><i>👉 Top Unreflected Party: <b>{top_excess['Deductor / Party Name']}</b> (₹ {top_excess['Books TDS']:,.2f}).</i></span>
-        </div>
-        """, unsafe_allow_html=True)
-
-    # ---------------- DASHBOARD & ANALYTICS ----------------
-    st.markdown("---")
-    st.markdown("### 📊 Live Summary Dashboard")
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Total TDS in 26AS", f"₹ {recon['Total TDS Deposited'].sum():,.2f}")
-    m2.metric("Total TDS in Books", f"₹ {recon['Books TDS'].sum():,.2f}")
-    net_diff = recon['Total TDS Deposited'].sum() - recon['Books TDS'].sum()
-    m3.metric("Net Variance", f"₹ {net_diff:,.2f}", delta=f"₹ {net_diff:,.2f}", delta_color="inverse")
-
-    st.markdown("### 📈 Reconciliation Analytics")
-    c1, c2 = st.columns(2)
-    
-    with c1:
-        # Match Status Pie Chart
-        status_counts = final_recon["Match Status"].value_counts().reset_index()
-        status_counts.columns = ["Match Status", "Count"]
-        color_map = {
-            "Exact Match": "#10b981", "Fuzzy Match": "#38bdf8", 
-            "Value Mismatch": "#ef4444", "Missing in Books": "#f97316", "Missing in 26AS": "#8b5cf6"
-        }
-        fig_status = px.pie(status_counts, names="Match Status", values="Count", title="Match Status Distribution", hole=0.4, color="Match Status", color_discrete_map=color_map)
-        fig_status.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font=dict(color="#f8fafc", family="Poppins"))
-        st.plotly_chart(fig_status, use_container_width=True)
-
-    with c2:
-        # Section-Wise Bar Chart
-        section_summary = recon.groupby('Section')[['Total TDS Deposited', 'Books TDS']].sum().reset_index()
-        section_summary = section_summary[section_summary['Section'] != ""]
-        fig_sec = px.bar(section_summary, x='Section', y=['Total TDS Deposited', 'Books TDS'], barmode='group', title="TDS Claimed vs Reflected by Section")
-        fig_sec.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font=dict(color="#f8fafc", family="Poppins"), legend_title_text="")
-        st.plotly_chart(fig_sec, use_container_width=True)
-
-    # --- Excel Export ---
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-        workbook = writer.book
-        brand_format = workbook.add_format({"bold": True, "font_size": 18, "bg_color": "#0f172a", "font_color": "#38bdf8", "align": "center", "valign": "vcenter"})
-        dev_format = workbook.add_format({"italic": True, "font_size": 10, "bg_color": "#0f172a", "font_color": "#94a3b8", "align": "center"})
-        fmt_dark_blue_white = workbook.add_format({"bold": True, "bg_color": "#0052cc", "font_color": "white", "border": 1, "text_wrap": True, "align": "center", "valign": "vcenter"})
-        fmt_subtotal = workbook.add_format({"bold": True, "bg_color": "#f2f2f2", "border": 1, "num_format": "#,##0.00"})
-
-        dash = workbook.add_worksheet("Dashboard")
-        dash.hide_gridlines(2)
+        diff_tds = recon["Difference TDS"].abs()
+        conditions_status = [
+            (recon["Match Type"].isin(["Exact (TAN)", "Dictionary Match"])) & (diff_tds <= tolerance),
+            (recon["Match Type"].isin(["Exact (TAN)", "Dictionary Match"])) & (diff_tds > tolerance),
+            (recon["Match Type"] == "Fuzzy Match") & (diff_tds <= tolerance),
+            (recon["Match Type"] == "Fuzzy Match") & (diff_tds > tolerance),
+            (recon["Match Type"] == "Missing in Books"),
+            (recon["Match Type"] == "Missing in 26AS")
+        ]
+        statuses = ["Exact Match", "Value Mismatch", "Fuzzy Match", "Value Mismatch", "Missing in Books", "Missing in 26AS"]
+        reasons = ["Matched perfectly", "TDS value mismatch", "Matched ignoring name formatting", "TDS value mismatch", "Not recorded in Books", "Not reflected in 26AS"]
         
-        fy_title = f"(FY: {extracted_fy})" if extracted_fy != "Unknown" else ""
-        dash.merge_range("A1:M2", f"26AS ENTERPRISE RECON - EXECUTIVE SUMMARY {fy_title}", brand_format)
-        dash.merge_range("A3:M3", "Developed by ABHISHEK JAKKULA | jakkulaabhishek5@gmail.com", dev_format)
+        recon["Match Status"] = np.select(conditions_status, statuses, default="Unknown")
+        recon["Reason for Difference"] = np.select(conditions_status, reasons, default="Unknown")
 
-        dash.write_row("B5", ["Match Status", "Record Count", "TDS Impact (26AS)", "TDS Impact (Books)"], fmt_dark_blue_white)
-        dash.set_column('B:B', 25); dash.set_column('C:E', 18)
+        final_recon = recon[[
+            "Section", "Match Status", "Deductor / Party Name", "Final TAN",
+            "Total Amount Paid / Credited", "Books Amount", "Difference Amount",
+            "Total TDS Deposited", "Books TDS", "Difference TDS", "Effective Rate 26AS (%)", "Reason for Difference"
+        ]].rename(columns={"Final TAN": "TAN"})
 
-        dashboard_statuses = ["Exact Match", "Fuzzy Match", "Value Mismatch", "Missing in Books", "Missing in 26AS"]
-        for i, status in enumerate(dashboard_statuses):
-            row = 5 + i
-            dash.write(row, 1, status)
-            dash.write_formula(row, 2, f'=COUNTIF(Reconciliation!$B$3:$B${max_rows}, "{status}")')
-            dash.write_formula(row, 3, f'=SUMIF(Reconciliation!$B$3:$B${max_rows}, "{status}", Reconciliation!$H$3:$H${max_rows})')
-            dash.write_formula(row, 4, f'=SUMIF(Reconciliation!$B$3:$B${max_rows}, "{status}", Reconciliation!$I$3:$I${max_rows})')
-
-        top_26as = final_recon[final_recon["Total TDS Deposited"] > 0].nlargest(10, "Total TDS Deposited")
-        top_books = final_recon[final_recon["Books TDS"] > 0].nlargest(10, "Books TDS")
-
-        dash.write("G5", "Top 10 Suppliers (26AS)", fmt_dark_blue_white)
-        dash.write_row("G6", ["Deductor / Party Name", "Total Amount (26AS)", "Total TDS (26AS)"], fmt_dark_blue_white)
-        for i, (_, row) in enumerate(top_26as.iterrows()): 
-            dash.write_row(i + 6, 6, [row["Deductor / Party Name"], row["Total Amount Paid / Credited"], row["Total TDS Deposited"]])
-        dash.set_column('G:G', 35); dash.set_column('H:I', 18)
-
-        dash.write("K5", "Top 10 Suppliers (Books)", fmt_dark_blue_white)
-        dash.write_row("K6", ["Deductor / Party Name", "Books Amount", "Books TDS"], fmt_dark_blue_white)
-        for i, (_, row) in enumerate(top_books.iterrows()): 
-            dash.write_row(i + 6, 10, [row["Deductor / Party Name"], row["Books Amount"], row["Books TDS"]])
-        dash.set_column('K:K', 35); dash.set_column('L:M', 18)
-
-        pie_chart = workbook.add_chart({'type': 'pie'})
-        pie_chart.add_series({'name': 'Status Distribution', 'categories': f'=Dashboard!$B$6:$B$10', 'values': f'=Dashboard!$C$6:$C$10', 'data_labels': {'percentage': True, 'show_leader_lines': True}})
-        dash.insert_chart('B13', pie_chart)
-
-        pie_26as = workbook.add_chart({'type': 'pie'})
-        pie_26as.add_series({'name': 'Top 10 26AS', 'categories': f'=Dashboard!$G$7:$G${6 + len(top_26as)}', 'values': f'=Dashboard!$I$7:$I${6 + len(top_26as)}', 'data_labels': {'percentage': True}})
-        pie_26as.set_title({'name': 'Top 10 Deductors (26AS)'})
-        dash.insert_chart('G18', pie_26as)
-
-        pie_books = workbook.add_chart({'type': 'pie'})
-        pie_books.add_series({'name': 'Top 10 Books', 'categories': f'=Dashboard!$K$7:$K${6 + len(top_books)}', 'values': f'=Dashboard!$M$7:$M${6 + len(top_books)}', 'data_labels': {'percentage': True}})
-        pie_books.set_title({'name': 'Top 10 Parties (Books)'})
-        dash.insert_chart('K18', pie_books)
-
-        # B. Reconciliation Sheet with Auto-Width
-        sheet_recon = workbook.add_worksheet("Reconciliation")
-        final_recon.to_excel(writer, sheet_name="Reconciliation", startrow=2, index=False, header=False)
+        # ---------------- COMPLIANCE ALERTS (AT THE TOP) ----------------
+        st.markdown("### 🚨 Compliance & Anomaly Alerts")
         
-        for col_num, col_name in enumerate(final_recon.columns):
-            sheet_recon.write(1, col_num, col_name, fmt_dark_blue_white)
-            if pd.api.types.is_numeric_dtype(final_recon[col_name]) and col_name != "Effective Rate 26AS (%)":
-                col_letter = chr(65 + col_num) 
-                formula = f"=SUBTOTAL(9,{col_letter}3:{col_letter}{max_rows})"
-                sheet_recon.write_formula(0, col_num, formula, fmt_subtotal)
+        anomalies = recon[(recon['Effective Rate 26AS (%)'] > 0) & (~recon['Effective Rate 26AS (%)'].isin([1.0, 2.0, 5.0, 10.0, 20.0]))]
+        if not anomalies.empty:
+            top_anomaly = anomalies.nlargest(1, 'Total TDS Deposited').iloc[0]
+            st.markdown(f"""
+            <div class="alert-box-blue">
+                <b>🔎 TDS Rate Anomaly Detected:</b> Non-standard deduction rates identified.<br>
+                <span style="color: #7dd3fc; font-size: 0.95rem;"><i>👉 <b>{top_anomaly['Deductor / Party Name']}</b> deducted TDS at an effective rate of <b>{top_anomaly['Effective Rate 26AS (%)']}%</b>.</i></span>
+            </div>
+            """, unsafe_allow_html=True)
+
+        miss_in_books = recon[recon["Match Status"] == "Missing in Books"]
+        if not miss_in_books.empty and miss_in_books["Total TDS Deposited"].sum() > 0:
+            top_missed = miss_in_books.loc[miss_in_books["Total TDS Deposited"].idxmax()]
+            st.markdown(f"""
+            <div class="alert-box-red">
+                <b>URGENT: Unclaimed TDS Leakage!</b> ₹ {miss_in_books["Total TDS Deposited"].sum():,.2f} is in 26AS but completely <b>MISSING</b> in books.<br>
+                <span style="color: #fca5a5; font-size: 0.95rem;"><i>👉 Top Missing Party: <b>{top_missed['Deductor / Party Name']}</b> (₹ {top_missed['Total TDS Deposited']:,.2f}).</i></span>
+            </div>
+            """, unsafe_allow_html=True)
+
+        miss_in_26as = recon[recon["Match Status"] == "Missing in 26AS"]
+        if not miss_in_26as.empty and miss_in_26as["Books TDS"].sum() > 0:
+            top_excess = miss_in_26as.loc[miss_in_26as["Books TDS"].idxmax()]
+            st.markdown(f"""
+            <div class="alert-box-yellow">
+                <b>COMPLIANCE RISK:</b> ₹ {miss_in_26as["Books TDS"].sum():,.2f} of TDS is claimed in Books but <b>NOT uploaded in 26AS</b>.<br>
+                <span style="color: #fcd34d; font-size: 0.95rem;"><i>👉 Top Unreflected Party: <b>{top_excess['Deductor / Party Name']}</b> (₹ {top_excess['Books TDS']:,.2f}).</i></span>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # ---------------- DASHBOARD & ANALYTICS ----------------
+        st.markdown("---")
+        st.markdown("### 📊 Live Summary Dashboard")
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Total TDS in 26AS", f"₹ {recon['Total TDS Deposited'].sum():,.2f}")
+        m2.metric("Total TDS in Books", f"₹ {recon['Books TDS'].sum():,.2f}")
+        net_diff = recon['Total TDS Deposited'].sum() - recon['Books TDS'].sum()
+        m3.metric("Net Variance", f"₹ {net_diff:,.2f}", delta=f"₹ {net_diff:,.2f}", delta_color="inverse")
+
+        st.markdown("### 📈 Reconciliation Analytics")
+        c1, c2 = st.columns(2)
+        
+        with c1:
+            # Match Status Pie Chart
+            status_counts = final_recon["Match Status"].value_counts().reset_index()
+            status_counts.columns = ["Match Status", "Count"]
+            color_map = {
+                "Exact Match": "#10b981", "Fuzzy Match": "#38bdf8", 
+                "Value Mismatch": "#ef4444", "Missing in Books": "#f97316", "Missing in 26AS": "#8b5cf6"
+            }
+            fig_status = px.pie(status_counts, names="Match Status", values="Count", title="Match Status Distribution", hole=0.4, color="Match Status", color_discrete_map=color_map)
+            fig_status.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font=dict(color="#f8fafc", family="Poppins"))
+            st.plotly_chart(fig_status, use_container_width=True)
+
+        with c2:
+            # Section-Wise Bar Chart
+            section_summary = recon.groupby('Section')[['Total TDS Deposited', 'Books TDS']].sum().reset_index()
+            section_summary = section_summary[section_summary['Section'] != ""]
+            fig_sec = px.bar(section_summary, x='Section', y=['Total TDS Deposited', 'Books TDS'], barmode='group', title="TDS Claimed vs Reflected by Section")
+            fig_sec.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font=dict(color="#f8fafc", family="Poppins"), legend_title_text="")
+            st.plotly_chart(fig_sec, use_container_width=True)
+
+        # --- Excel Export ---
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+            workbook = writer.book
+            brand_format = workbook.add_format({"bold": True, "font_size": 18, "bg_color": "#0f172a", "font_color": "#38bdf8", "align": "center", "valign": "vcenter"})
+            dev_format = workbook.add_format({"italic": True, "font_size": 10, "bg_color": "#0f172a", "font_color": "#94a3b8", "align": "center"})
+            fmt_dark_blue_white = workbook.add_format({"bold": True, "bg_color": "#0052cc", "font_color": "white", "border": 1, "text_wrap": True, "align": "center", "valign": "vcenter"})
+            fmt_subtotal = workbook.add_format({"bold": True, "bg_color": "#f2f2f2", "border": 1, "num_format": "#,##0.00"})
+
+            dash = workbook.add_worksheet("Dashboard")
+            dash.hide_gridlines(2)
             
-            max_len = max(final_recon[col_name].astype(str).map(len).max(), len(str(col_name)))
-            sheet_recon.set_column(col_num, col_num, min(max_len + 3, 45))
+            fy_title = f"(FY: {extracted_fy})" if extracted_fy != "Unknown" else ""
+            dash.merge_range("A1:M2", f"26AS ENTERPRISE RECON - EXECUTIVE SUMMARY {fy_title}", brand_format)
+            dash.merge_range("A3:M3", "Developed by ABHISHEK JAKKULA | jakkulaabhishek5@gmail.com", dev_format)
 
-        sheet_recon.autofilter(1, 0, max_rows, len(final_recon.columns) - 1)
+            dash.write_row("B5", ["Match Status", "Record Count", "TDS Impact (26AS)", "TDS Impact (Books)"], fmt_dark_blue_white)
+            dash.set_column('B:B', 25); dash.set_column('C:E', 18)
 
-        # C. Raw Data Sheets with Auto-Width
-        structured_26as.to_excel(writer, sheet_name="26AS Raw", index=False)
-        sheet_26_raw = writer.sheets["26AS Raw"]
-        for i, col in enumerate(structured_26as.columns):
-            max_len = max(structured_26as[col].astype(str).map(len).max(), len(str(col)))
-            sheet_26_raw.set_column(i, i, min(max_len + 3, 45))
+            dashboard_statuses = ["Exact Match", "Fuzzy Match", "Value Mismatch", "Missing in Books", "Missing in 26AS"]
+            for i, status in enumerate(dashboard_statuses):
+                row = 5 + i
+                dash.write(row, 1, status)
+                dash.write_formula(row, 2, f'=COUNTIF(Reconciliation!$B$3:$B${max_rows}, "{status}")')
+                dash.write_formula(row, 3, f'=SUMIF(Reconciliation!$B$3:$B${max_rows}, "{status}", Reconciliation!$H$3:$H${max_rows})')
+                dash.write_formula(row, 4, f'=SUMIF(Reconciliation!$B$3:$B${max_rows}, "{status}", Reconciliation!$I$3:$I${max_rows})')
 
-        books.to_excel(writer, sheet_name="Books Raw", index=False)
-        sheet_bk_raw = writer.sheets["Books Raw"]
-        for i, col in enumerate(books.columns):
-            max_len = max(books[col].astype(str).map(len).max(), len(str(col)))
-            sheet_bk_raw.set_column(i, i, min(max_len + 3, 45))
+            top_26as = final_recon[final_recon["Total TDS Deposited"] > 0].nlargest(10, "Total TDS Deposited")
+            top_books = final_recon[final_recon["Books TDS"] > 0].nlargest(10, "Books TDS")
 
-    output.seek(0)
-    st.success("✅ Enterprise Reconciliation completed successfully.")
+            dash.write("G5", "Top 10 Suppliers (26AS)", fmt_dark_blue_white)
+            dash.write_row("G6", ["Deductor / Party Name", "Total Amount (26AS)", "Total TDS (26AS)"], fmt_dark_blue_white)
+            for i, (_, row) in enumerate(top_26as.iterrows()): 
+                dash.write_row(i + 6, 6, [row["Deductor / Party Name"], row["Total Amount Paid / Credited"], row["Total TDS Deposited"]])
+            dash.set_column('G:G', 35); dash.set_column('H:I', 18)
 
-    fy_safe = extracted_fy.replace('-', '_') if extracted_fy != 'Unknown' else 'Latest'
-    
-    col_dl1, col_dl2, col_dl3 = st.columns([1,2,1])
-    with col_dl2: 
-        st.download_button("⚡ Download Final Excel Report", output, f"26AS_Recon_FY_{fy_safe}.xlsx", use_container_width=True)
+            dash.write("K5", "Top 10 Suppliers (Books)", fmt_dark_blue_white)
+            dash.write_row("K6", ["Deductor / Party Name", "Books Amount", "Books TDS"], fmt_dark_blue_white)
+            for i, (_, row) in enumerate(top_books.iterrows()): 
+                dash.write_row(i + 6, 10, [row["Deductor / Party Name"], row["Books Amount"], row["Books TDS"]])
+            dash.set_column('K:K', 35); dash.set_column('L:M', 18)
+
+            pie_chart = workbook.add_chart({'type': 'pie'})
+            pie_chart.add_series({'name': 'Status Distribution', 'categories': f'=Dashboard!$B$6:$B$10', 'values': f'=Dashboard!$C$6:$C$10', 'data_labels': {'percentage': True, 'show_leader_lines': True}})
+            dash.insert_chart('B13', pie_chart)
+
+            pie_26as = workbook.add_chart({'type': 'pie'})
+            pie_26as.add_series({'name': 'Top 10 26AS', 'categories': f'=Dashboard!$G$7:$G${6 + len(top_26as)}', 'values': f'=Dashboard!$I$7:$I${6 + len(top_26as)}', 'data_labels': {'percentage': True}})
+            pie_26as.set_title({'name': 'Top 10 Deductors (26AS)'})
+            dash.insert_chart('G18', pie_26as)
+
+            pie_books = workbook.add_chart({'type': 'pie'})
+            pie_books.add_series({'name': 'Top 10 Books', 'categories': f'=Dashboard!$K$7:$K${6 + len(top_books)}', 'values': f'=Dashboard!$M$7:$M${6 + len(top_books)}', 'data_labels': {'percentage': True}})
+            pie_books.set_title({'name': 'Top 10 Parties (Books)'})
+            dash.insert_chart('K18', pie_books)
+
+            # B. Reconciliation Sheet with Auto-Width
+            sheet_recon = workbook.add_worksheet("Reconciliation")
+            final_recon.to_excel(writer, sheet_name="Reconciliation", startrow=2, index=False, header=False)
+            
+            for col_num, col_name in enumerate(final_recon.columns):
+                sheet_recon.write(1, col_num, col_name, fmt_dark_blue_white)
+                if pd.api.types.is_numeric_dtype(final_recon[col_name]) and col_name != "Effective Rate 26AS (%)":
+                    col_letter = chr(65 + col_num) 
+                    formula = f"=SUBTOTAL(9,{col_letter}3:{col_letter}{max_rows})"
+                    sheet_recon.write_formula(0, col_num, formula, fmt_subtotal)
+                
+                max_len = max(final_recon[col_name].astype(str).map(len).max(), len(str(col_name)))
+                sheet_recon.set_column(col_num, col_num, min(max_len + 3, 45))
+
+            sheet_recon.autofilter(1, 0, max_rows, len(final_recon.columns) - 1)
+
+            # C. Raw Data Sheets with Auto-Width
+            structured_26as.to_excel(writer, sheet_name="26AS Raw", index=False)
+            sheet_26_raw = writer.sheets["26AS Raw"]
+            for i, col in enumerate(structured_26as.columns):
+                max_len = max(structured_26as[col].astype(str).map(len).max(), len(str(col)))
+                sheet_26_raw.set_column(i, i, min(max_len + 3, 45))
+
+            books.to_excel(writer, sheet_name="Books Raw", index=False)
+            sheet_bk_raw = writer.sheets["Books Raw"]
+            for i, col in enumerate(books.columns):
+                max_len = max(books[col].astype(str).map(len).max(), len(str(col)))
+                sheet_bk_raw.set_column(i, i, min(max_len + 3, 45))
+
+        output.seek(0)
+        st.success("✅ Enterprise Reconciliation completed successfully.")
+
+        fy_safe = extracted_fy.replace('-', '_') if extracted_fy != 'Unknown' else 'Latest'
+        
+        col_dl1, col_dl2, col_dl3 = st.columns([1,2,1])
+        with col_dl2: 
+            st.download_button("⚡ Download Final Excel Report", output, f"26AS_Recon_FY_{fy_safe}.xlsx", use_container_width=True)
+
+# Close the main glass card
+st.markdown('</div>', unsafe_allow_html=True)
+
+# Footer
+st.markdown("""
+<div style="text-align:center; margin-top:30px; margin-bottom:20px; opacity:0.8;">
+    <span style="font-weight:700;">Tool Developed by Abhishek Jakkula</span><br>
+    <span>📧 <a href="mailto:jakkulaabhishek5@gmail.com" style="color: var(--accent-light); text-decoration:none;">jakkulaabhishek5@gmail.com</a></span>
+</div>
+""", unsafe_allow_html=True)
