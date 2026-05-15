@@ -475,7 +475,8 @@ if run_engine:
                 row_26_idx = recon[(recon['TAN of Deductor'] == tan_26) & (recon['Match Type'] == 'Missing in Books')].index
                 row_bk_idx = recon[(recon['Party Name'] == target_bk_name) & (recon['Match Type'] == 'Missing in 26AS')].index
                 
-                if not row_26_idx.empty() and not row_bk_idx.empty():
+                # FIX: Use `.empty` property (no parentheses) because it's a property, not a method
+                if not row_26_idx.empty and not row_bk_idx.empty:
                     i_26, i_bk = row_26_idx[0], row_bk_idx[0]
                     recon.at[i_26, 'Party Name'] = recon.at[i_bk, 'Party Name']
                     recon.at[i_26, 'TAN'] = recon.at[i_bk, 'TAN']
@@ -646,7 +647,8 @@ if run_engine:
                     formula = f"=SUBTOTAL(9,{col_letter}3:{col_letter}{max_rows})"
                     sheet_recon.write_formula(0, col_num, formula, fmt_subtotal)
                 
-                max_len = max(final_recon[col_name].astype(str).map(len).max(), len(str(col_name)))
+                # FIX: Use .str.len() instead of .map(len) to avoid Arrow dtype issues
+                max_len = max(final_recon[col_name].astype(str).str.len().max(), len(str(col_name)))
                 sheet_recon.set_column(col_num, col_num, min(max_len + 3, 45))
 
             sheet_recon.autofilter(1, 0, max_rows, len(final_recon.columns) - 1)
@@ -655,13 +657,15 @@ if run_engine:
             structured_26as.to_excel(writer, sheet_name="26AS Raw", index=False)
             sheet_26_raw = writer.sheets["26AS Raw"]
             for i, col in enumerate(structured_26as.columns):
-                max_len = max(structured_26as[col].astype(str).map(len).max(), len(str(col)))
+                # FIX: Same fix as above
+                max_len = max(structured_26as[col].astype(str).str.len().max(), len(str(col)))
                 sheet_26_raw.set_column(i, i, min(max_len + 3, 45))
 
             books.to_excel(writer, sheet_name="Books Raw", index=False)
             sheet_bk_raw = writer.sheets["Books Raw"]
             for i, col in enumerate(books.columns):
-                max_len = max(books[col].astype(str).map(len).max(), len(str(col)))
+                # FIX: Same fix as above
+                max_len = max(books[col].astype(str).str.len().max(), len(str(col)))
                 sheet_bk_raw.set_column(i, i, min(max_len + 3, 45))
 
         output.seek(0)
