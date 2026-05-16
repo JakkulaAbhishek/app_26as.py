@@ -8,7 +8,7 @@ from rapidfuzz import process, fuzz
 
 st.set_page_config(page_title="26AS Enterprise Reconciliation", layout="wide")
 
-# ----------- GLASSMORPHIC UI (same as before) -----------
+# ----------- GLASSMORPHIC UI -----------
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
@@ -454,13 +454,13 @@ def extract_26as_detailed(file_bytes):
     df = pd.DataFrame(transactions)
     return df
 
-# ------------------- RECONCILIATION ENGINE (modified for section-wise agg) -------------------
+# ------------------- RECONCILIATION ENGINE (with sections lookup) -------------------
 def process_data(txt_bytes, books_bytes, known_mappings, fuzzy_cutoff):
     raw_26as_detailed = extract_26as_detailed(txt_bytes)
     if raw_26as_detailed.empty:
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
-    # 1. Section-wise aggregated 26AS (for display & potential future section-level matching)
+    # 1. Section-wise aggregated 26AS (for display)
     agg_26as_section = raw_26as_detailed.groupby(
         ['TAN of Deductor', 'Name of Deductor', 'Section'], as_index=False
     ).agg({
@@ -471,7 +471,12 @@ def process_data(txt_bytes, books_bytes, known_mappings, fuzzy_cutoff):
         'Total tax deducted': 'Total TDS Deposited'
     })
 
-    # 2. Deductor-level aggregated 26AS (sum over all sections) for matching with books
+    # Build a lookup dictionary: TAN -> combined sections (comma-separated, unique)
+    tan_to_sections = agg_26as_section.groupby('TAN of Deductor')['Section'].agg(
+        lambda x: ','.join(sorted(set(x)))
+    ).to_dict()
+
+    # 2. Deductor-level aggregated 26AS for matching with books
     agg_26as_deductor = agg_26as_section.groupby(
         ['TAN of Deductor', 'Name of Deductor'], as_index=False
     ).agg({
@@ -557,7 +562,6 @@ def process_data(txt_bytes, books_bytes, known_mappings, fuzzy_cutoff):
             for col in ["Name of Deductor", "TAN of Deductor", "Total Amount Paid / Credited", "Total TDS Deposited"]:
                 combined[col] = ""
             combined["Match Type"] = "Missing in 26AS"
-            # No Section column in books; leave empty
             combined["Section"] = ""
             fuzzy_records.append(combined)
 
@@ -568,9 +572,12 @@ def process_data(txt_bytes, books_bytes, known_mappings, fuzzy_cutoff):
     for col in ["Name of Deductor", "Party Name", "TAN of Deductor", "TAN", "Section"]:
         if col not in recon.columns:
             recon[col] = ""
+
     recon["Deductor / Party Name"] = np.where(recon["Name of Deductor"].notna() & (recon["Name of Deductor"] != ""), recon["Name of Deductor"], recon["Party Name"])
     recon["Final TAN"] = np.where(recon["TAN of Deductor"].notna() & (recon["TAN of Deductor"] != ""), recon["TAN of Deductor"], recon["TAN"])
-    # For section-wise display in reconciliation, we will not aggregate; keep as is.
+
+    # Add sections column from the lookup dictionary
+    recon['26AS Sections'] = recon['TAN of Deductor'].map(tan_to_sections).fillna('')
 
     return recon, agg_26as_section, raw_26as_detailed, books
 
@@ -627,8 +634,9 @@ if run_engine:
         recon["Match Status"] = np.select(conditions_status, statuses, default="Unknown")
         recon["Reason for Difference"] = np.select(conditions_status, reasons, default="Unknown")
 
+        # Build final reconciliation DataFrame including the new '26AS Sections' column
         final_recon = recon[[
-            "Section", "Match Status", "Deductor / Party Name", "Final TAN",
+            "26AS Sections", "Match Status", "Deductor / Party Name", "Final TAN",
             "Total Amount Paid / Credited", "Books Amount", "Difference Amount",
             "Total TDS Deposited", "Books TDS", "Difference TDS", "Effective Rate 26AS (%)", "Reason for Difference"
         ]].rename(columns={"Final TAN": "TAN"})
@@ -690,13 +698,23 @@ if run_engine:
             st.plotly_chart(fig_status, use_container_width=True)
 
         with c2:
-            section_summary = recon.groupby('Section')[['Total TDS Deposited', 'Books TDS']].sum().reset_index()
-            section_summary = section_summary[section_summary['Section'] != ""]
-            fig_sec = px.bar(section_summary, x='Section', y=['Total TDS Deposited', 'Books TDS'], barmode='group', title="TDS Claimed vs Reflected by Section")
-            fig_sec.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font=dict(color="#f8fafc", family="Poppins"), legend_title_text="")
-            st.plotly_chart(fig_sec, use_container_width=True)
+            # Use '26AS Sections' for section-wise bar chart (aggregate by distinct sections)
+            # Explode sections for charting (if a row has multiple sections, count TDS under each)
+            section_data = []
+            for _, row in recon.iterrows():
+                if row['26AS Sections'] and row['26AS Sections'] != "":
+                    for sec in row['26AS Sections'].split(','):
+                        section_data.append({'Section': sec.strip(), 'Total TDS Deposited': row['Total TDS Deposited']})
+            if section_data:
+                section_df = pd.DataFrame(section_data)
+                section_summary = section_df.groupby('Section')['Total TDS Deposited'].sum().reset_index()
+                fig_sec = px.bar(section_summary, x='Section', y='Total TDS Deposited', title="TDS Deposited by Section (26AS)")
+                fig_sec.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font=dict(color="#f8fafc", family="Poppins"))
+                st.plotly_chart(fig_sec, use_container_width=True)
+            else:
+                st.info("No section data to display.")
 
-        # ------------------- EXCEL EXPORT WITH TOTALS -------------------
+        # ------------------- EXCEL EXPORT WITH TOTALS AND SECTIONS -------------------
         output = io.BytesIO()
         max_rows = len(final_recon) + 10
         with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
@@ -707,7 +725,7 @@ if run_engine:
             fmt_subtotal = workbook.add_format({"bold": True, "bg_color": "#f2f2f2", "border": 1, "num_format": "#,##0.00"})
             fmt_number = workbook.add_format({"num_format": "#,##0.00"})
 
-            # Dashboard (unchanged)
+            # Dashboard sheet
             dash = workbook.add_worksheet("Dashboard")
             dash.hide_gridlines(2)
             fy_title = f"(FY: {extracted_fy})" if extracted_fy != "Unknown" else ""
@@ -776,7 +794,7 @@ if run_engine:
                 pie_books.set_title({'name': 'Top 10 Parties (Books)'})
                 dash.insert_chart('K18', pie_books)
 
-            # Reconciliation sheet (unchanged)
+            # Reconciliation sheet
             sheet_recon = workbook.add_worksheet("Reconciliation")
             final_recon.to_excel(writer, sheet_name="Reconciliation", startrow=2, index=False, header=False)
 
@@ -795,17 +813,14 @@ if run_engine:
             # 26AS Aggregated (section-wise) with totals
             if not agg_26as_section.empty:
                 agg_sheet = workbook.add_worksheet("26AS Aggregated")
-                # Prepare data with totals row
                 numeric_agg = ["Total Amount Paid / Credited", "Total TDS Deposited"]
                 agg_with_total = add_totals_row(agg_26as_section, numeric_agg)
                 agg_with_total.to_excel(writer, sheet_name="26AS Aggregated", startrow=1, index=False, header=False)
-                # Write headers and apply formatting
                 for col_num, col_name in enumerate(agg_with_total.columns):
                     agg_sheet.write(0, col_num, col_name, fmt_dark_blue_white)
                     max_len = max(agg_with_total[col_name].astype(str).str.len().max(), len(col_name))
                     agg_sheet.set_column(col_num, col_num, min(max_len + 3, 45))
                     if col_name in numeric_agg:
-                        # Apply number format to all rows except maybe the TOTAL row (but it's fine)
                         agg_sheet.set_column(col_num, col_num, None, fmt_number)
                 agg_sheet.autofilter(0, 0, len(agg_with_total), len(agg_with_total.columns)-1)
 
@@ -830,7 +845,7 @@ if run_engine:
                         raw_sheet.set_column(col_num, col_num, None, fmt_number)
                 raw_sheet.autofilter(0, 0, len(raw_with_total), len(raw_columns)-1)
 
-            # Books Raw sheet (no totals needed, but keep as is)
+            # Books Raw sheet
             books.to_excel(writer, sheet_name="Books Raw", index=False)
             sheet_bk_raw = writer.sheets["Books Raw"]
             for i, col in enumerate(books.columns):
