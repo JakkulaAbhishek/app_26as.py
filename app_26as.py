@@ -379,7 +379,6 @@ with col_b2:
 def extract_26as_detailed(file_bytes):
     """
     Extract transaction-level details from 26AS PART-I.
-    Handles the specific format: summary line per deductor followed by transaction lines.
     Returns DataFrame with columns:
     Section, Sl. No., Name of Deductor, TAN of Deductor, Amount paid/credited,
     Date of Payment/Credit, Total tax deducted, Amount claimed for this year, C/F Tax.
@@ -431,22 +430,11 @@ def extract_26as_detailed(file_bytes):
             continue
 
         # If we have a current deductor and the line looks like a transaction line
-        # Transaction line format: first field number, second field section code (like 194Q)
         if current_name and current_tan and len(parts) >= 9:
             # First field must be a number, second field must be a section code (digits + letters)
             if (re.fullmatch(r'\d+', parts[0]) and
                 re.fullmatch(r'\d+[A-Z]+', parts[1])):
                 try:
-                    # Map fields according to observed structure:
-                    # 0: Sr.No (within deductor)
-                    # 1: Section
-                    # 2: Transaction Date
-                    # 3: Status (not needed)
-                    # 4: Booking Date (not needed)
-                    # 5: Remarks (not needed)
-                    # 6: Amount Paid/Credited
-                    # 7: Tax Deducted
-                    # 8: TDS Deposited
                     trans = {
                         "Sl. No.": int(parts[0]),
                         "Section": parts[1],
@@ -466,21 +454,29 @@ def extract_26as_detailed(file_bytes):
     df = pd.DataFrame(transactions)
     return df
 
-# ------------------- RECONCILIATION ENGINE (unchanged logic) -------------------
+# ------------------- RECONCILIATION ENGINE (modified for section-wise agg) -------------------
 def process_data(txt_bytes, books_bytes, known_mappings, fuzzy_cutoff):
     raw_26as_detailed = extract_26as_detailed(txt_bytes)
     if raw_26as_detailed.empty:
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
-    # Aggregate by deductor
-    agg_26as = raw_26as_detailed.groupby(['TAN of Deductor', 'Name of Deductor'], as_index=False).agg({
+    # 1. Section-wise aggregated 26AS (for display & potential future section-level matching)
+    agg_26as_section = raw_26as_detailed.groupby(
+        ['TAN of Deductor', 'Name of Deductor', 'Section'], as_index=False
+    ).agg({
         'Amount paid/credited': 'sum',
-        'Total tax deducted': 'sum',
-        'Section': lambda x: ','.join(sorted(set(x)))
-    })
-    agg_26as = agg_26as.rename(columns={
+        'Total tax deducted': 'sum'
+    }).rename(columns={
         'Amount paid/credited': 'Total Amount Paid / Credited',
         'Total tax deducted': 'Total TDS Deposited'
+    })
+
+    # 2. Deductor-level aggregated 26AS (sum over all sections) for matching with books
+    agg_26as_deductor = agg_26as_section.groupby(
+        ['TAN of Deductor', 'Name of Deductor'], as_index=False
+    ).agg({
+        'Total Amount Paid / Credited': 'sum',
+        'Total TDS Deposited': 'sum'
     })
 
     # Load books
@@ -501,13 +497,13 @@ def process_data(txt_bytes, books_bytes, known_mappings, fuzzy_cutoff):
         books[col] = pd.to_numeric(books[col], errors="coerce").fillna(0)
     books = books.groupby(['Party Name', 'TAN'], as_index=False)[numeric_cols].sum()
 
-    # Exact match by TAN
-    agg_26as["TAN of Deductor"] = agg_26as["TAN of Deductor"].astype(str).str.strip().str.upper()
-    exact_match = pd.merge(agg_26as, books, left_on="TAN of Deductor", right_on="TAN", how="inner")
+    # Exact match by TAN (deductor level)
+    agg_26as_deductor["TAN of Deductor"] = agg_26as_deductor["TAN of Deductor"].astype(str).str.strip().str.upper()
+    exact_match = pd.merge(agg_26as_deductor, books, left_on="TAN of Deductor", right_on="TAN", how="inner")
     exact_match["Match Type"] = "Exact (TAN)"
 
     matched_tans = exact_match["TAN of Deductor"].unique()
-    unmatched_26as = agg_26as[~agg_26as["TAN of Deductor"].isin(matched_tans)]
+    unmatched_26as = agg_26as_deductor[~agg_26as_deductor["TAN of Deductor"].isin(matched_tans)]
     unmatched_books = books[~books["TAN"].isin(matched_tans)]
 
     # Dictionary mappings
@@ -558,21 +554,37 @@ def process_data(txt_bytes, books_bytes, known_mappings, fuzzy_cutoff):
     for idx, row in unmatched_books.iterrows():
         if idx not in matched_book_indices:
             combined = row.to_dict()
-            for col in ["Name of Deductor", "TAN of Deductor", "Total Amount Paid / Credited", "Total TDS Deposited", "Section"]:
+            for col in ["Name of Deductor", "TAN of Deductor", "Total Amount Paid / Credited", "Total TDS Deposited"]:
                 combined[col] = ""
             combined["Match Type"] = "Missing in 26AS"
+            # No Section column in books; leave empty
+            combined["Section"] = ""
             fuzzy_records.append(combined)
 
     fuzzy_df = pd.DataFrame(fuzzy_records) if fuzzy_records else pd.DataFrame()
     recon = pd.concat([exact_match, fuzzy_df], ignore_index=True)
 
-    for col in ["Name of Deductor", "Party Name", "TAN of Deductor", "TAN"]:
+    # Fill missing columns
+    for col in ["Name of Deductor", "Party Name", "TAN of Deductor", "TAN", "Section"]:
         if col not in recon.columns:
             recon[col] = ""
     recon["Deductor / Party Name"] = np.where(recon["Name of Deductor"].notna() & (recon["Name of Deductor"] != ""), recon["Name of Deductor"], recon["Party Name"])
     recon["Final TAN"] = np.where(recon["TAN of Deductor"].notna() & (recon["TAN of Deductor"] != ""), recon["TAN of Deductor"], recon["TAN"])
+    # For section-wise display in reconciliation, we will not aggregate; keep as is.
 
-    return recon, agg_26as, raw_26as_detailed, books
+    return recon, agg_26as_section, raw_26as_detailed, books
+
+# ------------------- HELPER: ADD TOTALS ROW TO DATAFRAME -------------------
+def add_totals_row(df, numeric_cols):
+    """Append a totals row to a DataFrame. Returns new DataFrame."""
+    totals = {}
+    for col in df.columns:
+        if col in numeric_cols:
+            totals[col] = df[col].sum()
+        else:
+            totals[col] = "TOTAL"
+    totals_df = pd.DataFrame([totals])
+    return pd.concat([df, totals_df], ignore_index=True)
 
 # ------------------- MAIN -------------------
 if run_engine:
@@ -580,7 +592,7 @@ if run_engine:
         st.warning("⚠️ Please upload both the 26AS and Books files to proceed.")
     else:
         with st.spinner("Running High-Speed AI Engine & Rate Auditor..."):
-            raw_recon, structured_26as_agg, raw_26as_detailed, books = process_data(
+            raw_recon, agg_26as_section, raw_26as_detailed, books = process_data(
                 txt_file.getvalue(), books_file.getvalue(), known_mappings, fuzzy_cutoff
             )
 
@@ -684,7 +696,7 @@ if run_engine:
             fig_sec.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font=dict(color="#f8fafc", family="Poppins"), legend_title_text="")
             st.plotly_chart(fig_sec, use_container_width=True)
 
-        # ------------------- EXCEL EXPORT -------------------
+        # ------------------- EXCEL EXPORT WITH TOTALS -------------------
         output = io.BytesIO()
         max_rows = len(final_recon) + 10
         with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
@@ -695,7 +707,7 @@ if run_engine:
             fmt_subtotal = workbook.add_format({"bold": True, "bg_color": "#f2f2f2", "border": 1, "num_format": "#,##0.00"})
             fmt_number = workbook.add_format({"num_format": "#,##0.00"})
 
-            # Dashboard
+            # Dashboard (unchanged)
             dash = workbook.add_worksheet("Dashboard")
             dash.hide_gridlines(2)
             fy_title = f"(FY: {extracted_fy})" if extracted_fy != "Unknown" else ""
@@ -764,7 +776,7 @@ if run_engine:
                 pie_books.set_title({'name': 'Top 10 Parties (Books)'})
                 dash.insert_chart('K18', pie_books)
 
-            # Reconciliation sheet
+            # Reconciliation sheet (unchanged)
             sheet_recon = workbook.add_worksheet("Reconciliation")
             final_recon.to_excel(writer, sheet_name="Reconciliation", startrow=2, index=False, header=False)
 
@@ -780,7 +792,24 @@ if run_engine:
 
             sheet_recon.autofilter(1, 0, max_rows, len(final_recon.columns) - 1)
 
-            # Detailed Raw 26AS Sheet
+            # 26AS Aggregated (section-wise) with totals
+            if not agg_26as_section.empty:
+                agg_sheet = workbook.add_worksheet("26AS Aggregated")
+                # Prepare data with totals row
+                numeric_agg = ["Total Amount Paid / Credited", "Total TDS Deposited"]
+                agg_with_total = add_totals_row(agg_26as_section, numeric_agg)
+                agg_with_total.to_excel(writer, sheet_name="26AS Aggregated", startrow=1, index=False, header=False)
+                # Write headers and apply formatting
+                for col_num, col_name in enumerate(agg_with_total.columns):
+                    agg_sheet.write(0, col_num, col_name, fmt_dark_blue_white)
+                    max_len = max(agg_with_total[col_name].astype(str).str.len().max(), len(col_name))
+                    agg_sheet.set_column(col_num, col_num, min(max_len + 3, 45))
+                    if col_name in numeric_agg:
+                        # Apply number format to all rows except maybe the TOTAL row (but it's fine)
+                        agg_sheet.set_column(col_num, col_num, None, fmt_number)
+                agg_sheet.autofilter(0, 0, len(agg_with_total), len(agg_with_total.columns)-1)
+
+            # 26AS Raw (Detailed) with totals
             if not raw_26as_detailed.empty:
                 raw_sheet = workbook.add_worksheet("26AS Raw (Detailed)")
                 raw_columns = ["Section", "Sl. No.", "Name of Deductor", "TAN of Deductor",
@@ -790,22 +819,18 @@ if run_engine:
                     if col not in raw_26as_detailed.columns:
                         raw_26as_detailed[col] = ""
                 raw_data = raw_26as_detailed[raw_columns]
-                raw_data.to_excel(writer, sheet_name="26AS Raw (Detailed)", startrow=1, index=False, header=False)
+                numeric_raw = ["Amount paid/credited", "Total tax deducted", "Amount claimed for this year", "C/F Tax"]
+                raw_with_total = add_totals_row(raw_data, numeric_raw)
+                raw_with_total.to_excel(writer, sheet_name="26AS Raw (Detailed)", startrow=1, index=False, header=False)
                 for col_num, col_name in enumerate(raw_columns):
                     raw_sheet.write(0, col_num, col_name, fmt_dark_blue_white)
-                    max_len = max(raw_data[col_name].astype(str).str.len().max(), len(col_name))
+                    max_len = max(raw_with_total[col_name].astype(str).str.len().max(), len(col_name))
                     raw_sheet.set_column(col_num, col_num, min(max_len + 3, 45))
-                    if col_name in ["Amount paid/credited", "Total tax deducted", "Amount claimed for this year", "C/F Tax"]:
+                    if col_name in numeric_raw:
                         raw_sheet.set_column(col_num, col_num, None, fmt_number)
-                raw_sheet.autofilter(0, 0, len(raw_data), len(raw_columns)-1)
+                raw_sheet.autofilter(0, 0, len(raw_with_total), len(raw_columns)-1)
 
-            # Aggregated 26AS and Books raw sheets
-            structured_26as_agg.to_excel(writer, sheet_name="26AS Aggregated", index=False)
-            sheet_26_agg = writer.sheets["26AS Aggregated"]
-            for i, col in enumerate(structured_26as_agg.columns):
-                max_len = max(structured_26as_agg[col].astype(str).str.len().max(), len(str(col)))
-                sheet_26_agg.set_column(i, i, min(max_len + 3, 45))
-
+            # Books Raw sheet (no totals needed, but keep as is)
             books.to_excel(writer, sheet_name="Books Raw", index=False)
             sheet_bk_raw = writer.sheets["Books Raw"]
             for i, col in enumerate(books.columns):
