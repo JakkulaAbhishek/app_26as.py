@@ -8,7 +8,7 @@ from rapidfuzz import process, fuzz
 
 st.set_page_config(page_title="26AS Enterprise Reconciliation", layout="wide")
 
-# ----------- ULTRA STYLISH GLASSMORPHIC UI (same as before) -----------
+# ----------- ULTRA STYLISH GLASSMORPHIC UI (unchanged) -----------
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
@@ -224,18 +224,17 @@ col_b1, col_b2, col_b3 = st.columns([1, 2, 1])
 with col_b2:
     run_engine = st.button("🚀 RUN ENTERPRISE ENGINE", use_container_width=True)
 
-# ----------- COMPLETELY REWRITTEN PARSER (ACCURATE) -----------
+# ----------- ROBUST PARSER (with correct section extraction) -----------
 @st.cache_data
 def extract_26as_summary_and_details(file_bytes):
     text = file_bytes.decode("utf-8", errors="ignore")
     lines = text.splitlines()
     
-    summary_data = []   # each deductor's summary line totals
-    details_data = []   # each transaction detail line
-    
+    summary_data = []
+    details_data = []
     tan_pattern = re.compile(r'[A-Z]{4}[0-9]{5}[A-Z]')
     
-    # Find PART-I section
+    # Find PART-I start
     part1_start = None
     for idx, line in enumerate(lines):
         if "PART-I - Details of Tax Deducted at Source" in line:
@@ -247,22 +246,19 @@ def extract_26as_summary_and_details(file_bytes):
     i = part1_start
     while i < len(lines):
         line = lines[i].strip()
-        # Stop when we hit another PART
+        # Stop at next PART
         if line.startswith("^PART-"):
             break
         
-        # Detect deductor summary line: starts with a digit, contains a TAN, and has at least 5 fields
+        # Detect deductor summary line: starts with digit and contains a TAN
         if line and line[0].isdigit() and '^' in line and tan_pattern.search(line):
             parts = line.split('^')
-            # Expected: Sr.No.^Name^TAN^^^^^Amount^Tax^Deposited
             if len(parts) >= 5:
                 try:
                     name = parts[1].strip()
                     tan = parts[2].strip().upper()
-                    # The last three non-empty fields are the totals
                     # Remove trailing empty strings
                     clean_parts = [p for p in parts if p.strip() != '']
-                    # Totals are the last three
                     if len(clean_parts) >= 3:
                         total_amount = float(clean_parts[-3].replace(',', ''))
                         total_tax = float(clean_parts[-2].replace(',', ''))
@@ -270,38 +266,35 @@ def extract_26as_summary_and_details(file_bytes):
                     else:
                         total_amount = total_tax = total_deposited = 0.0
                     
+                    # We'll determine section from first detail line
+                    section = ""
+                    
                     summary_data.append({
                         "Name of Deductor": name,
                         "TAN of Deductor": tan,
-                        "Section": "",  # will be filled from first detail line
+                        "Section": section,
                         "Total Amount Paid / Credited": total_amount,
                         "Total Tax Deducted": total_tax,
                         "Total TDS Deposited": total_deposited
                     })
                     
-                    # Now parse all following detail lines (starting with '^') until next deductor line
+                    # Parse detail lines under this deductor
                     j = i + 1
-                    current_section = ""
                     while j < len(lines):
                         detail_line = lines[j].strip()
-                        # Stop if next deductor summary line appears (starts with digit and contains TAN)
+                        # Stop if next deductor summary line appears
                         if detail_line and detail_line[0].isdigit() and tan_pattern.search(detail_line):
                             break
-                        # Stop if we hit another PART
                         if detail_line.startswith("^PART-"):
                             break
-                        # Process detail line: must start with '^'
                         if detail_line.startswith('^'):
                             det_parts = detail_line.split('^')
-                            # Expected: ['', SrNo, Section, TransDate, Status, BookingDate, Remarks, Amount, TDS, Deposited, '']
                             if len(det_parts) >= 10:
                                 try:
-                                    section = det_parts[2].strip()
-                                    if section and not current_section:
-                                        current_section = section
-                                        # Update the last summary entry's section
-                                        if summary_data:
-                                            summary_data[-1]["Section"] = section
+                                    sec = det_parts[2].strip()
+                                    # Set section for this deductor if not already set
+                                    if sec and not summary_data[-1]["Section"]:
+                                        summary_data[-1]["Section"] = sec
                                     trans_date = det_parts[3].strip()
                                     status = det_parts[4].strip()
                                     booking_date = det_parts[5].strip()
@@ -313,7 +306,7 @@ def extract_26as_summary_and_details(file_bytes):
                                     details_data.append({
                                         "Deductor Name": name,
                                         "TAN": tan,
-                                        "Section": section,
+                                        "Section": sec,
                                         "Transaction Date": trans_date,
                                         "Status": status,
                                         "Date of Booking": booking_date,
@@ -322,11 +315,10 @@ def extract_26as_summary_and_details(file_bytes):
                                         "Tax Deducted": tds,
                                         "TDS Deposited": deposited
                                     })
-                                except Exception as e:
-                                    # Skip malformed lines
+                                except Exception:
                                     pass
                         j += 1
-                    i = j  # move to next deductor line
+                    i = j
                     continue
                 except Exception:
                     pass
@@ -335,7 +327,7 @@ def extract_26as_summary_and_details(file_bytes):
     summary_df = pd.DataFrame(summary_data) if summary_data else pd.DataFrame()
     details_df = pd.DataFrame(details_data) if details_data else pd.DataFrame()
     
-    # Fallback: if summary_df empty, try the old method (preserved for safety)
+    # Fallback: if summary_df empty, try alternative method
     if summary_df.empty:
         in_part1, current_tan = False, ""
         section_map = {}
@@ -389,7 +381,6 @@ def process_data(txt_bytes, books_bytes):
     
     structured_26as["TAN of Deductor"] = structured_26as["TAN of Deductor"].astype(str).str.strip().str.upper()
     
-    # Exact match on TAN
     exact_match = pd.merge(structured_26as, books, left_on="TAN of Deductor", right_on="TAN", how="inner")
     exact_match["Match Type"] = "Exact (TAN)"
     
@@ -437,7 +428,7 @@ def process_data(txt_bytes, books_bytes):
                                   recon["TAN of Deductor"], recon["TAN"])
     return recon, structured_26as, books, details_26as
 
-# ---------------- MAIN LOGIC (unchanged except details sheet columns) ----------------
+# ---------------- MAIN LOGIC (with fixes for transactions and summary) ----------------
 if run_engine:
     if not txt_file or not books_file:
         st.warning("⚠️ Please upload both the 26AS and Books files to proceed.")
@@ -541,7 +532,7 @@ if run_engine:
             fig_sec.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font=dict(color="#f8fafc", family="Poppins"), legend_title_text="")
             st.plotly_chart(fig_sec, use_container_width=True)
         
-        # ---------------- ENHANCED EXCEL EXPORT (with corrected transactions) ----------------
+        # ---------------- ENHANCED EXCEL EXPORT (with fixes) ----------------
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
             workbook = writer.book
@@ -551,7 +542,7 @@ if run_engine:
             fmt_subtotal = workbook.add_format({"bold": True, "bg_color": "#f2f2f2", "border": 1, "num_format": "#,##0.00"})
             fmt_percent = workbook.add_format({"num_format": "0.00%"})
             
-            # Dashboard Sheet (same as before)
+            # Dashboard Sheet (unchanged)
             dash = workbook.add_worksheet("Dashboard")
             dash.hide_gridlines(2)
             fy_title = f"(FY: {extracted_fy})" if extracted_fy != "Unknown" else ""
@@ -593,7 +584,7 @@ if run_engine:
             pie_books.set_title({'name': 'Top 10 Parties (Books)'})
             dash.insert_chart('K18', pie_books)
             
-            # Reconciliation Sheet (renamed columns)
+            # Reconciliation Sheet
             sheet_recon = workbook.add_worksheet("Reconciliation")
             final_recon.to_excel(writer, sheet_name="Reconciliation", startrow=2, index=False, header=False)
             for col_num, col_name in enumerate(final_recon.columns):
@@ -608,7 +599,7 @@ if run_engine:
                 sheet_recon.set_column(col_num, col_num, min(max_len + 3, 45))
             sheet_recon.autofilter(1, 0, max_rows, len(final_recon.columns) - 1)
             
-            # 26AS Raw Summary (with totals row)
+            # 26AS Raw Summary (with totals row at bottom)
             structured_26as.to_excel(writer, sheet_name="26AS Raw Summary", index=False)
             sheet_26_raw = writer.sheets["26AS Raw Summary"]
             numeric_cols_26 = ["Total Amount Paid / Credited", "Total Tax Deducted", "Total TDS Deposited"]
@@ -629,28 +620,37 @@ if run_engine:
                 max_len = max(books[col].astype(str).str.len().max(), len(str(col)))
                 sheet_bk_raw.set_column(i, i, min(max_len + 3, 45))
             
-            # ---------- 26AS Transactions (exact required columns) ----------
+            # ---------- 26AS Transactions (with Section column and totals at top) ----------
             if not details_26as.empty:
                 # Prepare transaction data
                 trans_df = details_26as.copy()
                 # Add sequential Sl. No.
                 trans_df.insert(0, "Sl. No.", range(1, len(trans_df)+1))
-                # Select and rename columns as per requirement
+                # Create final dataframe with Section after Sl. No.
                 final_trans = pd.DataFrame({
                     "Sl. No.": trans_df["Sl. No."],
+                    "Section": trans_df["Section"],
                     "Tax Deduction Account Number (TAN)": trans_df["TAN"],
                     "Name of the Deductor": trans_df["Deductor Name"],
                     "Amount paid/credited": trans_df["Amount Paid / Credited"],
                     "Date of Payment/Credit": trans_df["Transaction Date"],
                     "Amount claimed for this year": trans_df["Tax Deducted"]
                 })
-                final_trans.to_excel(writer, sheet_name="26AS Transactions", index=False)
+                final_trans.to_excel(writer, sheet_name="26AS Transactions", startrow=2, index=False, header=False)
                 sheet_trans = writer.sheets["26AS Transactions"]
-                # Add totals row for Amount and Claimed
-                last_row = len(final_trans) + 1
-                sheet_trans.write(last_row, 3, "=SUM(D2:D{})".format(last_row), fmt_subtotal)  # Amount column
-                sheet_trans.write(last_row, 5, "=SUM(F2:F{})".format(last_row), fmt_subtotal)  # Claimed column
-                sheet_trans.write(last_row, 0, "TOTAL", fmt_subtotal)
+                # Write headers at row 1
+                for col_num, col_name in enumerate(final_trans.columns):
+                    sheet_trans.write(1, col_num, col_name, fmt_dark_blue_white)
+                # Write totals row at row 2 (immediately after headers) using SUBTOTAL formulas
+                last_data_row = len(final_trans) + 2  # because data starts at row 3
+                # SUBTOTAL(9, range) sums only visible rows after filtering
+                # We'll reference from row 3 to a large number (e.g., 10000)
+                max_row_setting = max_rows if max_rows > last_data_row else last_data_row + 1000
+                # Amount column (col index 4)
+                sheet_trans.write(2, 4, f"=SUBTOTAL(9, E3:E{max_row_setting})", fmt_subtotal)
+                # Amount claimed column (col index 6)
+                sheet_trans.write(2, 6, f"=SUBTOTAL(9, G3:G{max_row_setting})", fmt_subtotal)
+                sheet_trans.write(2, 0, "TOTAL", fmt_subtotal)
                 # Set column widths
                 for i, col in enumerate(final_trans.columns):
                     max_len = max(final_trans[col].astype(str).str.len().max(), len(str(col)))
@@ -659,7 +659,7 @@ if run_engine:
                 pd.DataFrame({"Message": ["No detailed transactions found"]}).to_excel(writer, sheet_name="26AS Transactions", index=False)
         
         output.seek(0)
-        st.success("✅ Enterprise Reconciliation completed successfully. All transactions are now correctly extracted and displayed in '26AS Transactions'.")
+        st.success("✅ Enterprise Reconciliation completed successfully. '26AS Transactions' now includes Section column and totals at the top. Section column in '26AS Raw Summary' is correctly populated.")
         fy_safe = extracted_fy.replace('-', '_') if extracted_fy != 'Unknown' else 'Latest'
         col_dl1, col_dl2, col_dl3 = st.columns([1,2,1])
         with col_dl2:
