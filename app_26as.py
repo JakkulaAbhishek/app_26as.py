@@ -8,12 +8,11 @@ from rapidfuzz import process, fuzz
 
 st.set_page_config(page_title="26AS Enterprise Reconciliation", layout="wide")
 
-# ----------- ULTRA STYLISH GLASSMORPHIC UI -----------
+# ----------- ULTRA STYLISH GLASSMORPHIC UI (unchanged) -----------
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
 
-/* Root variables for light/dark adaptation */
 :root {
     --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     --card-bg: rgba(255, 255, 255, 0.25);
@@ -27,7 +26,6 @@ st.markdown("""
     --danger: #ef4444;
 }
 
-/* Dark mode overrides (if Streamlit in dark) */
 @media (prefers-color-scheme: dark) {
     :root {
         --card-bg: rgba(17, 25, 40, 0.75);
@@ -37,16 +35,11 @@ st.markdown("""
         --accent: #9f7aea;
         --accent-light: #b794f4;
     }
-    .stApp {
-        background: #0f172a;
-    }
+    .stApp { background: #0f172a; }
 }
 
-html, body, [class*="css"] {
-    font-family: 'Inter', sans-serif;
-}
+html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 
-/* Animated background */
 .stApp {
     background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
     background-size: 400% 400%;
@@ -60,11 +53,9 @@ html, body, [class*="css"] {
     100% { background-position: 0% 50%; }
 }
 
-/* Glassmorphic card containers */
 .glass-card {
     background: var(--card-bg);
     backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
     border-radius: 20px;
     border: 1px solid var(--card-border);
     padding: 2rem;
@@ -72,13 +63,8 @@ html, body, [class*="css"] {
     box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
     transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
+.glass-card:hover { transform: translateY(-5px); box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.5); }
 
-.glass-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.5);
-}
-
-/* Header */
 .header-title {
     font-weight: 800;
     font-size: 3.5rem;
@@ -86,32 +72,12 @@ html, body, [class*="css"] {
     background: linear-gradient(90deg, #fff, #e0e7ff);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    text-shadow: 0 2px 10px rgba(0,0,0,0.2);
     letter-spacing: -0.02em;
 }
+.header-sub { font-size: 1.2rem; font-weight: 600; text-align: center; color: var(--text-primary); opacity: 0.9; }
+.dev-credit { font-size: 1rem; text-align: center; margin-top: 8px; color: var(--text-secondary); }
+.dev-credit b { background: linear-gradient(90deg, var(--accent), var(--accent-light)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 
-.header-sub {
-    font-size: 1.2rem;
-    font-weight: 600;
-    text-align: center;
-    color: var(--text-primary);
-    opacity: 0.9;
-}
-
-.dev-credit {
-    font-size: 1rem;
-    text-align: center;
-    margin-top: 8px;
-    color: var(--text-secondary);
-}
-
-.dev-credit b {
-    background: linear-gradient(90deg, var(--accent), var(--accent-light));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
-
-/* Zone (Step indicators) */
 .zone {
     background: var(--card-bg);
     backdrop-filter: blur(10px);
@@ -122,10 +88,8 @@ html, body, [class*="css"] {
     font-weight: 600;
     color: var(--text-primary);
     margin-bottom: 18px;
-    font-size: 1.1rem;
 }
 
-/* File uploader */
 [data-testid="stFileUploader"] {
     background: var(--card-bg) !important;
     backdrop-filter: blur(10px);
@@ -134,15 +98,9 @@ html, body, [class*="css"] {
     padding: 1.2em !important;
     transition: all 0.3s ease;
 }
+[data-testid="stFileUploader"]:hover { border-color: var(--accent) !important; background: rgba(255,255,255,0.15) !important; }
 
-[data-testid="stFileUploader"]:hover {
-    border-color: var(--accent) !important;
-    background: rgba(255,255,255,0.15) !important;
-}
-
-/* Buttons */
-.stButton>button,
-.stDownloadButton>button {
+.stButton>button, .stDownloadButton>button {
     background: linear-gradient(90deg, var(--accent), var(--accent-light));
     color: white !important;
     border-radius: 50px;
@@ -155,14 +113,8 @@ html, body, [class*="css"] {
     letter-spacing: 1px;
     width: 100%;
 }
+.stButton>button:hover, .stDownloadButton>button:hover { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6); }
 
-.stButton>button:hover,
-.stDownloadButton>button:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
-}
-
-/* Metrics */
 [data-testid="stMetric"] {
     background: var(--card-bg);
     backdrop-filter: blur(10px);
@@ -171,114 +123,29 @@ html, body, [class*="css"] {
     border: 1px solid var(--card-border);
     transition: transform 0.3s ease;
 }
+[data-testid="stMetric"]:hover { transform: scale(1.02); }
+[data-testid="stMetricValue"] { font-weight: 800; font-size: 1.8rem; color: var(--text-primary); }
+[data-testid="stMetricLabel"] { color: var(--text-secondary); }
 
-[data-testid="stMetric"]:hover {
-    transform: scale(1.02);
-}
+.alert-box-red { background: rgba(239, 68, 68, 0.15); backdrop-filter: blur(10px); border-left: 5px solid var(--danger); padding: 16px; border-radius: 12px; margin-bottom: 12px; color: var(--text-primary); }
+.alert-box-yellow { background: rgba(245, 158, 11, 0.15); backdrop-filter: blur(10px); border-left: 5px solid var(--warning); padding: 16px; border-radius: 12px; margin-bottom: 12px; color: var(--text-primary); }
+.alert-box-blue { background: rgba(37, 99, 235, 0.15); backdrop-filter: blur(10px); border-left: 5px solid var(--accent); padding: 16px; border-radius: 12px; margin-bottom: 12px; color: var(--text-primary); }
+.alert-box-green { background: rgba(16, 185, 129, 0.15); backdrop-filter: blur(10px); border-left: 5px solid var(--success); padding: 16px; border-radius: 12px; margin-bottom: 12px; color: var(--text-primary); }
 
-[data-testid="stMetricValue"] {
-    font-weight: 800;
-    font-size: 1.8rem;
-    color: var(--text-primary);
-}
+[data-testid="stDataFrame"] { background: transparent; }
+[data-testid="stDataFrame"] table { background: var(--card-bg); backdrop-filter: blur(5px); border-radius: 15px; overflow: hidden; }
+[data-testid="stDataFrame"] th { background: var(--accent) !important; color: white !important; font-weight: 600; }
+[data-testid="stDataFrame"] td { color: var(--text-primary); }
 
-[data-testid="stMetricLabel"] {
-    color: var(--text-secondary);
-}
-
-/* Alert boxes */
-.alert-box-red {
-    background: rgba(239, 68, 68, 0.15);
-    backdrop-filter: blur(10px);
-    border-left: 5px solid var(--danger);
-    padding: 16px;
-    border-radius: 12px;
-    margin-bottom: 12px;
-    color: var(--text-primary);
-}
-
-.alert-box-yellow {
-    background: rgba(245, 158, 11, 0.15);
-    backdrop-filter: blur(10px);
-    border-left: 5px solid var(--warning);
-    padding: 16px;
-    border-radius: 12px;
-    margin-bottom: 12px;
-    color: var(--text-primary);
-}
-
-.alert-box-blue {
-    background: rgba(37, 99, 235, 0.15);
-    backdrop-filter: blur(10px);
-    border-left: 5px solid var(--accent);
-    padding: 16px;
-    border-radius: 12px;
-    margin-bottom: 12px;
-    color: var(--text-primary);
-}
-
-.alert-box-green {
-    background: rgba(16, 185, 129, 0.15);
-    backdrop-filter: blur(10px);
-    border-left: 5px solid var(--success);
-    padding: 16px;
-    border-radius: 12px;
-    margin-bottom: 12px;
-    color: var(--text-primary);
-}
-
-/* Dataframe */
-[data-testid="stDataFrame"] {
-    background: transparent;
-}
-
-[data-testid="stDataFrame"] table {
-    background: var(--card-bg);
-    backdrop-filter: blur(5px);
-    border-radius: 15px;
-    overflow: hidden;
-}
-
-[data-testid="stDataFrame"] th {
-    background: var(--accent) !important;
-    color: white !important;
-    font-weight: 600;
-}
-
-[data-testid="stDataFrame"] td {
-    color: var(--text-primary);
-}
-
-/* Expander */
-.streamlit-expanderHeader {
-    background: var(--card-bg);
-    backdrop-filter: blur(10px);
-    border-radius: 15px;
-    font-weight: 600;
-    color: var(--text-primary);
-}
-
-.streamlit-expanderContent {
-    background: var(--card-bg);
-    backdrop-filter: blur(10px);
-    border-radius: 0 0 15px 15px;
-    border-top: none;
-}
-
-/* Sidebar */
-.css-1d391kg, .css-12oz5g7 {
-    background: var(--card-bg) !important;
-    backdrop-filter: blur(10px);
-}
-
-footer {visibility: hidden;}
+.streamlit-expanderHeader { background: var(--card-bg); backdrop-filter: blur(10px); border-radius: 15px; font-weight: 600; color: var(--text-primary); }
+.streamlit-expanderContent { background: var(--card-bg); backdrop-filter: blur(10px); border-radius: 0 0 15px 15px; border-top: none; }
+.css-1d391kg, .css-12oz5g7 { background: var(--card-bg) !important; backdrop-filter: blur(10px); }
+footer { visibility: hidden; }
 </style>
 """, unsafe_allow_html=True)
 
-# Wrap main content
 st.markdown('<div class="glass-card">', unsafe_allow_html=True)
 
-# ---------------- HEADER ----------------
 st.markdown("""
 <div style="text-align: center; margin-bottom: 30px;">
     <div class="header-title">26AS Enterprise Reconciliation</div>
@@ -287,29 +154,25 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ---------------- SIDEBAR ----------------
 with st.sidebar:
     st.markdown("### ⚙️ Engine Settings")
     tolerance = st.number_input("Mismatch Tolerance (₹)", min_value=0, value=10, step=1)
     max_rows = st.number_input("Max Rows for Excel Formulas", min_value=1000, value=15000, step=1000)
-    
     st.markdown("---")
     st.markdown("### 🧠 AI Smart Memory")
     st.info("Upload a previously saved Mapping Dictionary (CSV) to auto-match custom vendor names.")
     mapping_file = st.file_uploader("Upload Dictionary (CSV)", type=['csv'])
-    
     known_mappings = {}
     if mapping_file:
         try:
             map_df = pd.read_csv(mapping_file)
             if 'TAN of Deductor' in map_df.columns and 'Mapped Books Party' in map_df.columns:
-                known_mappings = dict(zip(map_df['TAN of Deductor'].astype(str).str.strip().str.upper(), 
+                known_mappings = dict(zip(map_df['TAN of Deductor'].astype(str).str.strip().str.upper(),
                                           map_df['Mapped Books Party'].astype(str).str.strip().str.upper()))
                 st.success(f"Loaded {len(known_mappings)} custom mappings!")
-        except Exception as e:
+        except Exception:
             st.error("Invalid dictionary format.")
 
-# ---------------- SAMPLE TEMPLATES ----------------
 st.markdown('<div class="zone">📄 Step 1: Upload original TRACES Form 26AS (.txt) and Books Excel</div>', unsafe_allow_html=True)
 
 sample_books = pd.DataFrame({"Party Name": ["ABC Pvt Ltd", "XYZ Corp"], "TAN": ["HYDA00000A", ""], "Books Amount": [100000, 50000], "Books TDS": [10000, 5000]})
@@ -328,7 +191,6 @@ with col_t2:
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# ---------------- FILE UPLOAD & YEAR VALIDATION ----------------
 col_txt, col_exc = st.columns(2)
 with col_txt:
     txt_file = st.file_uploader("Upload TRACES 26AS TEXT file", type=["txt"])
@@ -342,15 +204,14 @@ extracted_fy = "Unknown"
 if txt_file:
     raw_text = txt_file.getvalue().decode("utf-8", errors="ignore")
     header_match = re.search(r'\d{2}-\d{2}-\d{4}\^([A-Z]{5}\d{4}[A-Z])\^[^\^]*\^(\d{4}-\d{4})\^(\d{4}-\d{4})\^', raw_text)
-    
     if header_match:
         extracted_pan = header_match.group(1)
         extracted_fy = header_match.group(2)
         extracted_ay = header_match.group(3)
     else:
         pan_match = re.search(r'\^([A-Z]{5}\d{4}[A-Z])\^', raw_text)
-        if pan_match: extracted_pan = pan_match.group(1)
-    
+        if pan_match:
+            extracted_pan = pan_match.group(1)
     st.markdown(f"""
     <div class="alert-box-green" style="text-align:center;">
         <b>📌 Data Detected:</b> You are reconciling PAN <b>{extracted_pan}</b> for Financial Year <b>{extracted_fy}</b> (AY {extracted_ay}). Please ensure your Books match this period!
@@ -359,47 +220,29 @@ if txt_file:
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# ---------------- BUTTON LOGIC ----------------
 col_b1, col_b2, col_b3 = st.columns([1, 2, 1])
 with col_b2:
     run_engine = st.button("🚀 RUN ENTERPRISE ENGINE", use_container_width=True)
 
-# ----------- IMPROVED PARSER: EXTRACT SUMMARY & DETAILS WITH DATES -----------
+# ----------- IMPROVED PARSER (unchanged) -----------
 @st.cache_data
 def extract_26as_summary_and_details(file_bytes):
-    """
-    Parses the TRACES 26AS text file.
-    Returns:
-        summary_df: Aggregated per deductor (Total Amount, Total TDS, Section)
-        details_df: Each transaction line with Transaction Date and other fields
-    """
     text = file_bytes.decode("utf-8", errors="ignore")
     lines = text.splitlines()
-    
-    summary_data = []   # list of dicts for deductor totals
-    details_data = []   # list of dicts for each transaction line
-    
-    # Regex for TAN pattern
+    summary_data = []
+    details_data = []
     tan_pattern = re.compile(r'[A-Z]{4}[0-9]{5}[A-Z]')
-    
     i = 0
     while i < len(lines):
         line = lines[i].strip()
-        # Stop when we hit the next major section (PART-II etc.)
         if line.startswith("^PART-"):
             break
-        
-        # Detect deductor summary line: starts with a number and contains a TAN
-        # Example: "1^AMIT MIHARIA^CALA21688C^^^^^8980790.00^8980.00^8980.00^"
         if line and line[0].isdigit() and '^' in line and tan_pattern.search(line):
             parts = line.split('^')
-            # Expected indices: 0=SrNo, 1=Name, 2=TAN, ... then last three: Amount, Tax, Deposited
             if len(parts) >= 5:
                 try:
                     name = parts[1].strip()
                     tan = parts[2].strip().upper()
-                    # The totals are the last three non-empty parts before the final caret
-                    # Remove trailing empty strings
                     while parts and parts[-1] == '':
                         parts.pop()
                     if len(parts) >= 3:
@@ -408,17 +251,14 @@ def extract_26as_summary_and_details(file_bytes):
                         total_deposited = float(parts[-1].replace(',', ''))
                     else:
                         total_amount = total_tax = total_deposited = 0.0
-                    
-                    # Determine section by looking at first detail line (next lines starting with '^')
                     section = ""
                     j = i + 1
                     while j < len(lines) and lines[j].startswith('^'):
                         detail_parts = lines[j].split('^')
                         if len(detail_parts) >= 3 and detail_parts[2].strip():
-                            section = detail_parts[2].strip()  # Section like 194Q, 194C, etc.
+                            section = detail_parts[2].strip()
                             break
                         j += 1
-                    
                     summary_data.append({
                         "Name of Deductor": name,
                         "TAN of Deductor": tan,
@@ -427,20 +267,15 @@ def extract_26as_summary_and_details(file_bytes):
                         "Total Tax Deducted": total_tax,
                         "Total TDS Deposited": total_deposited
                     })
-                    
-                    # Now parse all detail lines under this deductor until next deductor or section end
                     j = i + 1
                     while j < len(lines):
                         detail_line = lines[j].strip()
-                        # Stop if we hit next deductor line (starts with digit and contains TAN) or new PART
                         if detail_line and detail_line[0].isdigit() and tan_pattern.search(detail_line):
                             break
                         if detail_line.startswith("^PART-"):
                             break
-                        # Process detail line: starts with '^' and contains at least 9 parts
                         if detail_line.startswith('^'):
                             det_parts = detail_line.split('^')
-                            # Expected structure: ['', SrNo, Section, TransactionDate, Status, BookingDate, Remarks, Amount, TDS, Deposited, '']
                             if len(det_parts) >= 10:
                                 try:
                                     trans_date = det_parts[3].strip() if len(det_parts) > 3 else ''
@@ -450,7 +285,6 @@ def extract_26as_summary_and_details(file_bytes):
                                     amount = float(det_parts[7].replace(',', '')) if det_parts[7].strip() else 0.0
                                     tds = float(det_parts[8].replace(',', '')) if det_parts[8].strip() else 0.0
                                     deposited = float(det_parts[9].replace(',', '')) if det_parts[9].strip() else 0.0
-                                    
                                     details_data.append({
                                         "Deductor Name": name,
                                         "TAN": tan,
@@ -466,19 +300,14 @@ def extract_26as_summary_and_details(file_bytes):
                                 except Exception:
                                     pass
                         j += 1
-                    i = j  # move index to next deductor line
+                    i = j
                     continue
-                except Exception as e:
-                    # Fallback: skip this line
+                except Exception:
                     pass
         i += 1
-    
     summary_df = pd.DataFrame(summary_data) if summary_data else pd.DataFrame()
     details_df = pd.DataFrame(details_data) if details_data else pd.DataFrame()
-    
-    # If summary_df is empty, try the old method as fallback (optional)
     if summary_df.empty:
-        # Old method (preserved for safety)
         in_part1, current_tan = False, ""
         section_map = {}
         for line in lines:
@@ -506,7 +335,6 @@ def extract_26as_summary_and_details(file_bytes):
                     pass
         if not summary_df.empty:
             summary_df.insert(0, "Section", summary_df["TAN of Deductor"].map(section_map).fillna(""))
-    
     return summary_df, details_df
 
 @st.cache_data(show_spinner=False)
@@ -514,34 +342,25 @@ def process_data(txt_bytes, books_bytes):
     structured_26as, details_26as = extract_26as_summary_and_details(txt_bytes)
     if structured_26as.empty:
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
-    
     books = pd.read_excel(io.BytesIO(books_bytes))
     required_cols = ["Party Name", "TAN", "Books Amount", "Books TDS"]
     for col in required_cols:
         if col not in books.columns:
             books[col] = "" if col in ["Party Name", "TAN"] else 0
-    
     books["TAN"] = books["TAN"].fillna("").astype(str).str.strip().str.upper()
     books["Party Name"] = books["Party Name"].fillna("").astype(str).str.strip().str.upper()
-    
     numeric_cols = ["Books Amount", "Books TDS"]
     for col in numeric_cols:
         books[col] = pd.to_numeric(books[col], errors="coerce").fillna(0)
     books = books.groupby(['Party Name', 'TAN'], as_index=False)[numeric_cols].sum()
-    
     structured_26as["TAN of Deductor"] = structured_26as["TAN of Deductor"].astype(str).str.strip().str.upper()
-    
-    # Exact match on TAN
     exact_match = pd.merge(structured_26as, books, left_on="TAN of Deductor", right_on="TAN", how="inner")
     exact_match["Match Type"] = "Exact (TAN)"
-    
     rem_26as = structured_26as[~structured_26as["TAN of Deductor"].isin(exact_match["TAN of Deductor"])]
     rem_books = books[~books["TAN"].isin(exact_match["TAN"])]
-    
     fuzzy_records = []
     matched_books_indices = set()
     book_choices = {idx: row["Party Name"] for idx, row in rem_books.iterrows()}
-    
     for idx_26, row_26 in rem_26as.iterrows():
         name_26 = str(row_26["Name of Deductor"]).upper()
         if not book_choices:
@@ -549,7 +368,6 @@ def process_data(txt_bytes, books_bytes):
             combined["Match Type"] = "Missing in Books"
             fuzzy_records.append(combined)
             continue
-        
         result = process.extractOne(name_26, book_choices, scorer=fuzz.token_sort_ratio, score_cutoff=70)
         if result:
             best_match_str, best_score, best_book_idx = result
@@ -563,38 +381,30 @@ def process_data(txt_bytes, books_bytes):
             combined = row_26.to_dict()
             combined["Match Type"] = "Missing in Books"
             fuzzy_records.append(combined)
-    
     for idx_bk, row_bk in rem_books.iterrows():
         if idx_bk not in matched_books_indices:
             combined = row_bk.to_dict()
             combined["Match Type"] = "Missing in 26AS"
             fuzzy_records.append(combined)
-    
     fuzzy_df = pd.DataFrame(fuzzy_records) if fuzzy_records else pd.DataFrame()
     recon = pd.concat([exact_match, fuzzy_df], ignore_index=True)
-    
-    recon["Deductor / Party Name"] = np.where(recon["Name of Deductor"].notna() & (recon["Name of Deductor"] != ""), 
+    recon["Deductor / Party Name"] = np.where(recon["Name of Deductor"].notna() & (recon["Name of Deductor"] != ""),
                                               recon["Name of Deductor"], recon["Party Name"])
-    recon["Final TAN"] = np.where(recon["TAN of Deductor"].notna() & (recon["TAN of Deductor"] != ""), 
+    recon["Final TAN"] = np.where(recon["TAN of Deductor"].notna() & (recon["TAN of Deductor"] != ""),
                                   recon["TAN of Deductor"], recon["TAN"])
-    
     return recon, structured_26as, books, details_26as
 
-# ---------------- MAIN APPLICATION LOGIC ----------------
+# ---------------- MAIN LOGIC (only Excel export modified) ----------------
 if run_engine:
     if not txt_file or not books_file:
         st.warning("⚠️ Please upload both the 26AS and Books files to proceed.")
     else:
         with st.spinner("Running High-Speed AI Engine & Rate Auditor..."):
             raw_recon, structured_26as, books, details_26as = process_data(txt_file.getvalue(), books_file.getvalue())
-        
         if raw_recon.empty:
             st.error("❌ No valid PART-I summary detected in the 26AS text file.")
             st.stop()
-        
         recon = raw_recon.copy()
-        
-        # Apply known dictionary mappings
         if known_mappings:
             for tan_26, target_bk_name in known_mappings.items():
                 row_26_idx = recon[(recon['TAN of Deductor'] == tan_26) & (recon['Match Type'] == 'Missing in Books')].index
@@ -608,17 +418,13 @@ if run_engine:
                     recon.at[i_26, 'Match Type'] = 'Dictionary Match'
                     recon.at[i_26, 'Deductor / Party Name'] = recon.at[i_26, 'Name of Deductor']
                     recon = recon.drop(index=i_bk)
-        
-        # Core Calculations
         num_cols = ["Total Amount Paid / Credited", "Total TDS Deposited", "Books Amount", "Books TDS"]
         for col in num_cols:
             recon[col] = pd.to_numeric(recon[col], errors="coerce").fillna(0)
-        
         recon["Difference Amount"] = recon["Total Amount Paid / Credited"] - recon["Books Amount"]
         recon["Difference TDS"] = recon["Total TDS Deposited"] - recon["Books TDS"]
-        recon['Effective Rate 26AS (%)'] = np.where(recon['Total Amount Paid / Credited'] > 0, 
+        recon['Effective Rate 26AS (%)'] = np.where(recon['Total Amount Paid / Credited'] > 0,
                                                     (recon['Total TDS Deposited'] / recon['Total Amount Paid / Credited']) * 100, 0).round(2)
-        
         diff_tds = recon["Difference TDS"].abs()
         conditions_status = [
             (recon["Match Type"].isin(["Exact (TAN)", "Dictionary Match"])) & (diff_tds <= tolerance),
@@ -630,19 +436,16 @@ if run_engine:
         ]
         statuses = ["Exact Match", "Value Mismatch", "Fuzzy Match", "Value Mismatch", "Missing in Books", "Missing in 26AS"]
         reasons = ["Matched perfectly", "TDS value mismatch", "Matched ignoring name formatting", "TDS value mismatch", "Not recorded in Books", "Not reflected in 26AS"]
-        
         recon["Match Status"] = np.select(conditions_status, statuses, default="Unknown")
         recon["Reason for Difference"] = np.select(conditions_status, reasons, default="Unknown")
-        
         final_recon = recon[[
             "Section", "Match Status", "Deductor / Party Name", "Final TAN",
             "Total Amount Paid / Credited", "Books Amount", "Difference Amount",
             "Total TDS Deposited", "Books TDS", "Difference TDS", "Effective Rate 26AS (%)", "Reason for Difference"
-        ]].rename(columns={"Final TAN": "TAN"})
+        ]].rename(columns={"Final TAN": "TAN", "Total Amount Paid / Credited": "26AS Amount", "Total TDS Deposited": "26AS TDS"})
         
-        # ---------------- COMPLIANCE ALERTS ----------------
+        # ---------------- COMPLIANCE ALERTS (unchanged) ----------------
         st.markdown("### 🚨 Compliance & Anomaly Alerts")
-        
         anomalies = recon[(recon['Effective Rate 26AS (%)'] > 0) & (~recon['Effective Rate 26AS (%)'].isin([1.0, 2.0, 5.0, 10.0, 20.0]))]
         if not anomalies.empty:
             top_anomaly = anomalies.nlargest(1, 'Total TDS Deposited').iloc[0]
@@ -652,7 +455,6 @@ if run_engine:
                 <span style="color: #7dd3fc; font-size: 0.95rem;"><i>👉 <b>{top_anomaly['Deductor / Party Name']}</b> deducted TDS at an effective rate of <b>{top_anomaly['Effective Rate 26AS (%)']}%</b>.</i></span>
             </div>
             """, unsafe_allow_html=True)
-        
         miss_in_books = recon[recon["Match Status"] == "Missing in Books"]
         if not miss_in_books.empty and miss_in_books["Total TDS Deposited"].sum() > 0:
             top_missed = miss_in_books.loc[miss_in_books["Total TDS Deposited"].idxmax()]
@@ -662,7 +464,6 @@ if run_engine:
                 <span style="color: #fca5a5; font-size: 0.95rem;"><i>👉 Top Missing Party: <b>{top_missed['Deductor / Party Name']}</b> (₹ {top_missed['Total TDS Deposited']:,.2f}).</i></span>
             </div>
             """, unsafe_allow_html=True)
-        
         miss_in_26as = recon[recon["Match Status"] == "Missing in 26AS"]
         if not miss_in_26as.empty and miss_in_26as["Books TDS"].sum() > 0:
             top_excess = miss_in_26as.loc[miss_in_26as["Books TDS"].idxmax()]
@@ -673,7 +474,7 @@ if run_engine:
             </div>
             """, unsafe_allow_html=True)
         
-        # ---------------- DASHBOARD & ANALYTICS ----------------
+        # ---------------- DASHBOARD & ANALYTICS (unchanged) ----------------
         st.markdown("---")
         st.markdown("### 📊 Live Summary Dashboard")
         m1, m2, m3 = st.columns(3)
@@ -681,22 +482,15 @@ if run_engine:
         m2.metric("Total TDS in Books", f"₹ {recon['Books TDS'].sum():,.2f}")
         net_diff = recon['Total TDS Deposited'].sum() - recon['Books TDS'].sum()
         m3.metric("Net Variance", f"₹ {net_diff:,.2f}", delta=f"₹ {net_diff:,.2f}", delta_color="inverse")
-        
         st.markdown("### 📈 Reconciliation Analytics")
         c1, c2 = st.columns(2)
-        
         with c1:
             status_counts = final_recon["Match Status"].value_counts().reset_index()
             status_counts.columns = ["Match Status", "Count"]
-            color_map = {
-                "Exact Match": "#10b981", "Fuzzy Match": "#38bdf8", 
-                "Value Mismatch": "#ef4444", "Missing in Books": "#f97316", "Missing in 26AS": "#8b5cf6"
-            }
-            fig_status = px.pie(status_counts, names="Match Status", values="Count", title="Match Status Distribution", hole=0.4, 
-                               color="Match Status", color_discrete_map=color_map)
+            color_map = {"Exact Match": "#10b981", "Fuzzy Match": "#38bdf8", "Value Mismatch": "#ef4444", "Missing in Books": "#f97316", "Missing in 26AS": "#8b5cf6"}
+            fig_status = px.pie(status_counts, names="Match Status", values="Count", title="Match Status Distribution", hole=0.4, color="Match Status", color_discrete_map=color_map)
             fig_status.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font=dict(color="#f8fafc", family="Poppins"))
             st.plotly_chart(fig_status, use_container_width=True)
-        
         with c2:
             section_summary = recon.groupby('Section')[['Total TDS Deposited', 'Books TDS']].sum().reset_index()
             section_summary = section_summary[section_summary['Section'] != ""]
@@ -704,7 +498,7 @@ if run_engine:
             fig_sec.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font=dict(color="#f8fafc", family="Poppins"), legend_title_text="")
             st.plotly_chart(fig_sec, use_container_width=True)
         
-        # ---------------- EXCEL EXPORT WITH DETAILS SHEET ----------------
+        # ---------------- ENHANCED EXCEL EXPORT ----------------
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
             workbook = writer.book
@@ -712,18 +506,17 @@ if run_engine:
             dev_format = workbook.add_format({"italic": True, "font_size": 10, "bg_color": "#0f172a", "font_color": "#94a3b8", "align": "center"})
             fmt_dark_blue_white = workbook.add_format({"bold": True, "bg_color": "#0052cc", "font_color": "white", "border": 1, "text_wrap": True, "align": "center", "valign": "vcenter"})
             fmt_subtotal = workbook.add_format({"bold": True, "bg_color": "#f2f2f2", "border": 1, "num_format": "#,##0.00"})
+            fmt_percent = workbook.add_format({"num_format": "0.00%"})
             
-            # Dashboard Sheet
+            # Dashboard Sheet (unchanged)
             dash = workbook.add_worksheet("Dashboard")
             dash.hide_gridlines(2)
             fy_title = f"(FY: {extracted_fy})" if extracted_fy != "Unknown" else ""
             dash.merge_range("A1:M2", f"26AS ENTERPRISE RECON - EXECUTIVE SUMMARY {fy_title}", brand_format)
             dash.merge_range("A3:M3", "Developed by ABHISHEK JAKKULA | jakkulaabhishek5@gmail.com", dev_format)
-            
             dash.write_row("B5", ["Match Status", "Record Count", "TDS Impact (26AS)", "TDS Impact (Books)"], fmt_dark_blue_white)
             dash.set_column('B:B', 25)
             dash.set_column('C:E', 18)
-            
             dashboard_statuses = ["Exact Match", "Fuzzy Match", "Value Mismatch", "Missing in Books", "Missing in 26AS"]
             for i, status in enumerate(dashboard_statuses):
                 row = 5 + i
@@ -731,43 +524,41 @@ if run_engine:
                 dash.write_formula(row, 2, f'=COUNTIF(Reconciliation!$B$3:$B${max_rows}, "{status}")')
                 dash.write_formula(row, 3, f'=SUMIF(Reconciliation!$B$3:$B${max_rows}, "{status}", Reconciliation!$H$3:$H${max_rows})')
                 dash.write_formula(row, 4, f'=SUMIF(Reconciliation!$B$3:$B${max_rows}, "{status}", Reconciliation!$I$3:$I${max_rows})')
-            
-            top_26as = final_recon[final_recon["Total TDS Deposited"] > 0].nlargest(10, "Total TDS Deposited")
+            top_26as = final_recon[final_recon["26AS TDS"] > 0].nlargest(10, "26AS TDS")
             top_books = final_recon[final_recon["Books TDS"] > 0].nlargest(10, "Books TDS")
-            
             dash.write("G5", "Top 10 Suppliers (26AS)", fmt_dark_blue_white)
             dash.write_row("G6", ["Deductor / Party Name", "Total Amount (26AS)", "Total TDS (26AS)"], fmt_dark_blue_white)
             for i, (_, row) in enumerate(top_26as.iterrows()):
-                dash.write_row(i + 6, 6, [row["Deductor / Party Name"], row["Total Amount Paid / Credited"], row["Total TDS Deposited"]])
+                dash.write_row(i + 6, 6, [row["Deductor / Party Name"], row["26AS Amount"], row["26AS TDS"]])
             dash.set_column('G:G', 35)
             dash.set_column('H:I', 18)
-            
             dash.write("K5", "Top 10 Suppliers (Books)", fmt_dark_blue_white)
             dash.write_row("K6", ["Deductor / Party Name", "Books Amount", "Books TDS"], fmt_dark_blue_white)
             for i, (_, row) in enumerate(top_books.iterrows()):
                 dash.write_row(i + 6, 10, [row["Deductor / Party Name"], row["Books Amount"], row["Books TDS"]])
             dash.set_column('K:K', 35)
             dash.set_column('L:M', 18)
-            
             pie_chart = workbook.add_chart({'type': 'pie'})
             pie_chart.add_series({'name': 'Status Distribution', 'categories': '=Dashboard!$B$6:$B$10', 'values': '=Dashboard!$C$6:$C$10', 'data_labels': {'percentage': True, 'show_leader_lines': True}})
             dash.insert_chart('B13', pie_chart)
-            
             pie_26as = workbook.add_chart({'type': 'pie'})
             pie_26as.add_series({'name': 'Top 10 26AS', 'categories': f'=Dashboard!$G$7:$G${6 + len(top_26as)}', 'values': f'=Dashboard!$I$7:$I${6 + len(top_26as)}', 'data_labels': {'percentage': True}})
             pie_26as.set_title({'name': 'Top 10 Deductors (26AS)'})
             dash.insert_chart('G18', pie_26as)
-            
             pie_books = workbook.add_chart({'type': 'pie'})
             pie_books.add_series({'name': 'Top 10 Books', 'categories': f'=Dashboard!$K$7:$K${6 + len(top_books)}', 'values': f'=Dashboard!$M$7:$M${6 + len(top_books)}', 'data_labels': {'percentage': True}})
             pie_books.set_title({'name': 'Top 10 Parties (Books)'})
             dash.insert_chart('K18', pie_books)
             
-            # Reconciliation Sheet
+            # Reconciliation Sheet (with renamed columns)
             sheet_recon = workbook.add_worksheet("Reconciliation")
             final_recon.to_excel(writer, sheet_name="Reconciliation", startrow=2, index=False, header=False)
             for col_num, col_name in enumerate(final_recon.columns):
                 sheet_recon.write(1, col_num, col_name, fmt_dark_blue_white)
+                if col_name == "Effective Rate 26AS (%)":
+                    # Apply percentage format to the entire column
+                    col_letter = chr(65 + col_num)
+                    sheet_recon.set_column(col_num, col_num, 12, fmt_percent)
                 if pd.api.types.is_numeric_dtype(final_recon[col_name]) and col_name != "Effective Rate 26AS (%)":
                     col_letter = chr(65 + col_num)
                     formula = f"=SUBTOTAL(9,{col_letter}3:{col_letter}{max_rows})"
@@ -776,9 +567,19 @@ if run_engine:
                 sheet_recon.set_column(col_num, col_num, min(max_len + 3, 45))
             sheet_recon.autofilter(1, 0, max_rows, len(final_recon.columns) - 1)
             
-            # 26AS Raw Summary (per deductor)
+            # 26AS Raw Summary (with totals row)
             structured_26as.to_excel(writer, sheet_name="26AS Raw Summary", index=False)
             sheet_26_raw = writer.sheets["26AS Raw Summary"]
+            # Add totals row at bottom
+            total_row = len(structured_26as) + 2  # after header + data start row 1? Actually header row 0, data starts row1. We'll use last row index.
+            # Better: write after all data
+            numeric_cols_26 = ["Total Amount Paid / Credited", "Total Tax Deducted", "Total TDS Deposited"]
+            for col_name in numeric_cols_26:
+                if col_name in structured_26as.columns:
+                    col_idx = structured_26as.columns.get_loc(col_name)
+                    formula = f"=SUM({chr(65+col_idx)}2:{chr(65+col_idx)}{len(structured_26as)+1})"
+                    sheet_26_raw.write(len(structured_26as)+1, col_idx, formula, fmt_subtotal)
+            sheet_26_raw.write(len(structured_26as)+1, 0, "TOTAL", fmt_subtotal)
             for i, col in enumerate(structured_26as.columns):
                 max_len = max(structured_26as[col].astype(str).str.len().max(), len(str(col)))
                 sheet_26_raw.set_column(i, i, min(max_len + 3, 45))
@@ -790,29 +591,60 @@ if run_engine:
                 max_len = max(books[col].astype(str).str.len().max(), len(str(col)))
                 sheet_bk_raw.set_column(i, i, min(max_len + 3, 45))
             
-            # NEW: 26AS Transaction Details with Dates
+            # ---------- NEW: 26AS Transactions with required format ----------
             if not details_26as.empty:
-                details_26as.to_excel(writer, sheet_name="26AS Transactions", index=False)
-                sheet_det = writer.sheets["26AS Transactions"]
-                for i, col in enumerate(details_26as.columns):
-                    max_len = max(details_26as[col].astype(str).str.len().max(), len(str(col)))
-                    sheet_det.set_column(i, i, min(max_len + 3, 45))
+                # Create desired columns
+                trans_df = details_26as.copy()
+                # Add sequential Sl. No.
+                trans_df.insert(0, "Sl. No.", range(1, len(trans_df)+1))
+                # Rename and create missing columns
+                trans_df["Tax Deduction Account Number (TAN)"] = trans_df["TAN"]
+                trans_df["Unique TDS Certificate No."] = ""
+                trans_df["Name of the Deductor"] = trans_df["Deductor Name"]
+                trans_df["Head of Income"] = trans_df["Section"]
+                trans_df["Amount paid/credited"] = trans_df["Amount Paid / Credited"]
+                trans_df["Date of Payment/Credit"] = trans_df["Transaction Date"]
+                trans_df["Total tax deducted"] = trans_df["Tax Deducted"]
+                trans_df["B/F Tax"] = 0
+                trans_df["Amount claimed for this year"] = trans_df["Tax Deducted"]  # same as total tax deducted
+                trans_df["C/F Tax"] = 0
+                
+                final_trans = trans_df[[
+                    "Sl. No.",
+                    "Tax Deduction Account Number (TAN)",
+                    "Unique TDS Certificate No.",
+                    "Name of the Deductor",
+                    "Head of Income",
+                    "Amount paid/credited",
+                    "Date of Payment/Credit",
+                    "Total tax deducted",
+                    "B/F Tax",
+                    "Amount claimed for this year",
+                    "C/F Tax"
+                ]]
+                
+                final_trans.to_excel(writer, sheet_name="26AS Transactions", index=False)
+                sheet_trans = writer.sheets["26AS Transactions"]
+                # Add totals row for Amount paid/credited and Total tax deducted
+                last_row = len(final_trans) + 1
+                sheet_trans.write(last_row, 5, "=SUM(F2:F{})".format(last_row), fmt_subtotal)  # Amount column
+                sheet_trans.write(last_row, 7, "=SUM(H2:H{})".format(last_row), fmt_subtotal)  # Tax deducted column
+                sheet_trans.write(last_row, 0, "TOTAL", fmt_subtotal)
+                # Set column widths
+                for i, col in enumerate(final_trans.columns):
+                    max_len = max(final_trans[col].astype(str).str.len().max(), len(str(col)))
+                    sheet_trans.set_column(i, i, min(max_len + 3, 45))
             else:
-                # Empty placeholder sheet
                 pd.DataFrame({"Message": ["No detailed transactions found"]}).to_excel(writer, sheet_name="26AS Transactions", index=False)
         
         output.seek(0)
-        st.success("✅ Enterprise Reconciliation completed successfully. Transaction dates are included in the '26AS Transactions' sheet.")
-        
+        st.success("✅ Enterprise Reconciliation completed successfully. Transaction dates are included in the '26AS Transactions' sheet with full format.")
         fy_safe = extracted_fy.replace('-', '_') if extracted_fy != 'Unknown' else 'Latest'
         col_dl1, col_dl2, col_dl3 = st.columns([1,2,1])
         with col_dl2:
             st.download_button("⚡ Download Final Excel Report", output, f"26AS_Recon_FY_{fy_safe}.xlsx", use_container_width=True)
 
-# Close main glass card
 st.markdown('</div>', unsafe_allow_html=True)
-
-# Footer
 st.markdown("""
 <div style="text-align:center; margin-top:30px; margin-bottom:20px; opacity:0.8;">
     <span style="font-weight:700;">Tool Developed by Abhishek Jakkula</span><br>
