@@ -599,33 +599,7 @@ if run_engine:
                 sheet_recon.set_column(col_num, col_num, min(max_len + 3, 45))
             sheet_recon.autofilter(1, 0, max_rows, len(final_recon.columns) - 1)
             
-            # ---------- 26AS Raw Summary (totals at top row 2) ----------
-            # Write data starting at row 3, headers at row 1, totals at row 2
-            structured_26as.to_excel(writer, sheet_name="26AS Raw Summary", startrow=2, index=False, header=False)
-            sheet_26_raw = writer.sheets["26AS Raw Summary"]
-            # Write headers at row 1
-            for col_num, col_name in enumerate(structured_26as.columns):
-                sheet_26_raw.write(1, col_num, col_name, fmt_dark_blue_white)
-            # Write totals row at row 2 using SUBTOTAL(9, range) from row 3 to max_rows
-            for col_num, col_name in enumerate(structured_26as.columns):
-                if col_name in ["Total Amount Paid / Credited", "Total Tax Deducted", "Total TDS Deposited"]:
-                    col_letter = chr(65 + col_num)
-                    formula = f"=SUBTOTAL(9,{col_letter}3:{col_letter}{max_rows})"
-                    sheet_26_raw.write(2, col_num, formula, fmt_subtotal)
-            sheet_26_raw.write(2, 0, "TOTAL", fmt_subtotal)
-            # Set column widths
-            for i, col in enumerate(structured_26as.columns):
-                max_len = max(structured_26as[col].astype(str).str.len().max(), len(str(col)))
-                sheet_26_raw.set_column(i, i, min(max_len + 3, 45))
-            
-            # Books Raw (no totals needed, but keep as is)
-            books.to_excel(writer, sheet_name="Books Raw", index=False)
-            sheet_bk_raw = writer.sheets["Books Raw"]
-            for i, col in enumerate(books.columns):
-                max_len = max(books[col].astype(str).str.len().max(), len(str(col)))
-                sheet_bk_raw.set_column(i, i, min(max_len + 3, 45))
-            
-            # ---------- 26AS Transactions (totals at top row 2, already correct) ----------
+            # ---------- 26AS Transactions (totals at top, row 2; data starts row 4) ----------
             if not details_26as.empty:
                 trans_df = details_26as.copy()
                 trans_df.insert(0, "Sl. No.", range(1, len(trans_df)+1))
@@ -636,26 +610,76 @@ if run_engine:
                     "Name of the Deductor": trans_df["Deductor Name"],
                     "Amount paid/credited": trans_df["Amount Paid / Credited"],
                     "Date of Payment/Credit": trans_df["Transaction Date"],
-                    "Amount claimed for this year": trans_df["Tax Deducted"]
+                    "Amount claimed for this year": trans_df["Tax Deducted"],
+                    "TDS Deposited": trans_df["TDS Deposited"]
                 })
-                final_trans.to_excel(writer, sheet_name="26AS Transactions", startrow=2, index=False, header=False)
+                # Data starting at row 4 (Excel row 4) => index 3
+                final_trans.to_excel(writer, sheet_name="26AS Transactions", startrow=3, index=False, header=False)
                 sheet_trans = writer.sheets["26AS Transactions"]
-                # Headers at row 1
+                # Headers in row 2 (Excel row 2) => index 1
                 for col_num, col_name in enumerate(final_trans.columns):
                     sheet_trans.write(1, col_num, col_name, fmt_dark_blue_white)
-                # Totals at row 2
-                last_data_row = len(final_trans) + 2
-                max_row_setting = max_rows if max_rows > last_data_row else last_data_row + 1000
-                # Amount column (index 4)
-                sheet_trans.write(2, 4, f"=SUBTOTAL(9, E3:E{max_row_setting})", fmt_subtotal)
-                # Amount claimed column (index 6)
-                sheet_trans.write(2, 6, f"=SUBTOTAL(9, G3:G{max_row_setting})", fmt_subtotal)
+                # Totals in row 3 (Excel row 3) => index 2
+                last_data_row = len(final_trans) + 3   # data starts at index 3
+                max_row_setting = max(max_rows, last_data_row + 1000)
+                # Amount paid (col 4, index 4): =SUBTOTAL(9, E4:E...)
+                sheet_trans.write_formula(2, 4, f"=SUBTOTAL(9, E4:E{max_row_setting})", fmt_subtotal)
+                # Amount claimed (col 6, index 6): =SUBTOTAL(9, G4:G...)
+                sheet_trans.write_formula(2, 6, f"=SUBTOTAL(9, G4:G{max_row_setting})", fmt_subtotal)
+                # TDS Deposited (col 7, index 7): =SUBTOTAL(9, H4:H...)
+                sheet_trans.write_formula(2, 7, f"=SUBTOTAL(9, H4:H{max_row_setting})", fmt_subtotal)
                 sheet_trans.write(2, 0, "TOTAL", fmt_subtotal)
                 for i, col in enumerate(final_trans.columns):
                     max_len = max(final_trans[col].astype(str).str.len().max(), len(str(col)))
                     sheet_trans.set_column(i, i, min(max_len + 3, 45))
             else:
+                # If no details, still create the sheet to avoid breaking references
                 pd.DataFrame({"Message": ["No detailed transactions found"]}).to_excel(writer, sheet_name="26AS Transactions", index=False)
+            
+            # ---------- 26AS Raw Summary (formula‑driven, party wise, totals at top) ----------
+            summary_sheet = workbook.add_worksheet("26AS Raw Summary")
+            # Headers in row 1 (index 0)
+            summary_headers = [
+                "TAN of Deductor", "Name of Deductor", "Section",
+                "Total Amount Paid / Credited", "Total Tax Deducted", "Total TDS Deposited"
+            ]
+            for col_num, header in enumerate(summary_headers):
+                summary_sheet.write(0, col_num, header, fmt_dark_blue_white)
+            # Totals row in row 2 (index 1)
+            summary_sheet.write(1, 0, "TOTAL", fmt_subtotal)
+            # Totals that sum all transactions (same as raw totals)
+            summary_sheet.write_formula(1, 3, f"=SUBTOTAL(9,'26AS Transactions'!E4:E{max_rows})", fmt_subtotal)
+            summary_sheet.write_formula(1, 4, f"=SUBTOTAL(9,'26AS Transactions'!G4:G{max_rows})", fmt_subtotal)
+            summary_sheet.write_formula(1, 5, f"=SUBTOTAL(9,'26AS Transactions'!H4:H{max_rows})", fmt_subtotal)
+            # Data starts at row 3 (index 2) with dynamic array formulas
+            # A2: unique TANs
+            summary_sheet.write_formula(2, 0,
+                f"=UNIQUE(FILTER('26AS Transactions'!C4:C{max_rows}, '26AS Transactions'!C4:C{max_rows}<>\"\"))")
+            # B2: deductor name (first match)
+            summary_sheet.write_formula(2, 1,
+                f"=INDEX('26AS Transactions'!D4:D{max_rows}, MATCH(A2#, '26AS Transactions'!C4:C{max_rows}, 0))")
+            # C2: section (first match)
+            summary_sheet.write_formula(2, 2,
+                f"=INDEX('26AS Transactions'!B4:B{max_rows}, MATCH(A2#, '26AS Transactions'!C4:C{max_rows}, 0))")
+            # D2: total amount paid
+            summary_sheet.write_formula(2, 3,
+                f"=SUMIF('26AS Transactions'!C4:C{max_rows}, A2#, '26AS Transactions'!E4:E{max_rows})")
+            # E2: total tax deducted
+            summary_sheet.write_formula(2, 4,
+                f"=SUMIF('26AS Transactions'!C4:C{max_rows}, A2#, '26AS Transactions'!G4:G{max_rows})")
+            # F2: total TDS deposited
+            summary_sheet.write_formula(2, 5,
+                f"=SUMIF('26AS Transactions'!C4:C{max_rows}, A2#, '26AS Transactions'!H4:H{max_rows})")
+            # Set column widths
+            for i, header in enumerate(summary_headers):
+                summary_sheet.set_column(i, i, len(header) + 10)
+            
+            # Books Raw (unchanged)
+            books.to_excel(writer, sheet_name="Books Raw", index=False)
+            sheet_bk_raw = writer.sheets["Books Raw"]
+            for i, col in enumerate(books.columns):
+                max_len = max(books[col].astype(str).str.len().max(), len(str(col)))
+                sheet_bk_raw.set_column(i, i, min(max_len + 3, 45))
         
         output.seek(0)
         st.success("✅ Enterprise Reconciliation completed successfully. Section column fixed and totals placed at the top in all sheets.")
